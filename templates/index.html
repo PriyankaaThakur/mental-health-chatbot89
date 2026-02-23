@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Mental Health Support</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <header class="header">
+            <h1>AI Mental Health Support</h1>
+            <p class="tagline">Powered by AI – a safe space to share how you feel</p>
+            <div class="disclaimer">
+                <strong>Disclaimer:</strong> This chatbot is not a licensed therapist or mental health professional.
+                It provides general support and information only. If you're in crisis, please contact emergency services or a crisis helpline.
+            </div>
+        </header>
+
+        <main class="chat-container">
+            <div class="chat-messages" id="chatMessages">
+                <div class="message bot-message">
+                    <div class="message-content">
+                        Hello. I'm here to listen and offer general support. You can share how you're feeling – for example, if you're stressed, anxious, or sad. How are you doing today?
+                    </div>
+                </div>
+            </div>
+
+            <form class="chat-input-form" id="chatForm">
+                <textarea 
+                    id="messageInput" 
+                    placeholder="Type your message here..." 
+                    rows="1"
+                    maxlength="500"
+                ></textarea>
+                <button type="submit" id="sendBtn" aria-label="Send message">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/>
+                    </svg>
+                </button>
+            </form>
+        </main>
+
+        <footer class="footer">
+            <p>No data is stored. Your conversations are private and not saved.</p>
+        </footer>
+    </div>
+
+    <div class="crisis-overlay" id="crisisOverlay" aria-hidden="true">
+        <div class="crisis-modal">
+            <h2>Important Resources</h2>
+            <p>If you or someone you know is in crisis, please reach out:</p>
+            <ul>
+                <li><strong>National Suicide Prevention Lifeline:</strong> 988 (US)</li>
+                <li><strong>Crisis Text Line:</strong> Text HOME to 741741</li>
+            </ul>
+            <button type="button" class="crisis-dismiss" id="crisisDismiss">I understand</button>
+        </div>
+    </div>
+
+    <script>
+        const chatMessages = document.getElementById('chatMessages');
+        const chatForm = document.getElementById('chatForm');
+        const messageInput = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const crisisOverlay = document.getElementById('crisisOverlay');
+        const crisisDismiss = document.getElementById('crisisDismiss');
+
+        let sessionId = sessionStorage.getItem('chatSessionId') || crypto.randomUUID();
+        sessionStorage.setItem('chatSessionId', sessionId);
+
+        function addMessage(text, isBot, isCrisis = false) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `message ${isBot ? 'bot-message' : 'user-message'}`;
+            if (isCrisis) msgDiv.classList.add('crisis-message');
+            
+            const content = document.createElement('div');
+            content.className = 'message-content';
+            if (isBot && typeof marked !== 'undefined') {
+                content.innerHTML = marked.parse(text, { breaks: true });
+            } else {
+                content.textContent = text;
+            }
+            msgDiv.appendChild(content);
+            
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+            return msgDiv;
+        }
+
+        function addTypingIndicator() {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'message bot-message typing-indicator';
+            msgDiv.id = 'typingIndicator';
+            msgDiv.innerHTML = '<div class="typing-dots"><span></span><span></span><span></span></div>';
+            chatMessages.appendChild(msgDiv);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+
+        function removeTypingIndicator() {
+            const el = document.getElementById('typingIndicator');
+            if (el) el.remove();
+        }
+
+        function setLoading(loading) {
+            sendBtn.disabled = loading;
+            sendBtn.classList.toggle('loading', loading);
+        }
+
+        chatForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            addMessage(text, false);
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            setLoading(true);
+            addTypingIndicator();
+
+            try {
+                const res = await fetch('/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message: text, session_id: sessionId })
+                });
+                const data = await res.json();
+                removeTypingIndicator();
+                if (data.session_id) sessionId = data.session_id;
+                addMessage(data.response, true, data.is_crisis);
+                if (data.is_crisis) {
+                    crisisOverlay.classList.add('visible');
+                    crisisOverlay.setAttribute('aria-hidden', 'false');
+                }
+            } catch (err) {
+                removeTypingIndicator();
+                addMessage('Sorry, something went wrong. Please try again.', true);
+            } finally {
+                setLoading(false);
+            }
+        });
+
+        messageInput.addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+        });
+
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                chatForm.requestSubmit();
+            }
+        });
+
+        crisisDismiss.addEventListener('click', () => {
+            crisisOverlay.classList.remove('visible');
+            crisisOverlay.setAttribute('aria-hidden', 'true');
+        });
+
+        crisisOverlay.addEventListener('click', (e) => {
+            if (e.target === crisisOverlay) {
+                crisisOverlay.classList.remove('visible');
+                crisisOverlay.setAttribute('aria-hidden', 'true');
+            }
+        });
+    </script>
+</body>
+</html>

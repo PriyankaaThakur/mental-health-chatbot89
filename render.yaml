@@ -1,0 +1,9 @@
+# Render Blueprint - Deploy with one click
+# Add OPENAI_API_KEY in Render Dashboard > Environment
+
+services:
+  - type: web
+    name: mental-health-chatbot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -c gunicorn_config.py app:app
