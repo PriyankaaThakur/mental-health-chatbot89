@@ -24,34 +24,45 @@ conversations: dict[str, list[dict]] = {}
 
 # Crisis keywords - trigger emergency response (bypasses AI)
 CRISIS_KEYWORDS = [
-    "suicide", "suicidal", "kill myself", "end my life", "want to die",
-    "self-harm", "self harm", "cutting", "hurt myself"
+    "suicide", "suicidal", "sucide", "sucid",  # include common typos
+    "kill myself", "end my life", "want to die", "end myself", "end it all",
+    "self-harm", "self harm", "cutting", "hurt myself",
+    "overdose", "take pills", "eat pills", "eat medicine", "100 medicine",
+    "take all my medicine", "swallow pills",
 ]
 
-SYSTEM_PROMPT = """You are a warm, caring mental health support assistant—like a supportive friend who truly listens and makes people feel valued.
+SYSTEM_PROMPT = """You are a warm, motivating mental health support assistant—like a caring friend who helps people feel better and move forward.
 
 CORE RULES:
-- Validate feelings first: "I hear you", "That sounds really hard", "Your feelings make sense"
-- Show genuine care—make the person feel seen and understood
-- Be specific to what they shared—don't give generic replies
-- Use "you" and speak directly. Be warm, not clinical
-- Keep responses 2-3 short paragraphs—conversational, not robotic
+- Validate first, then motivate: "I hear you" → "You can get through this" → gentle next step
+- Help them move on: offer hope, small actionable steps, remind them of their strength
+- Be specific to what they shared—never generic
+- Use "you" directly. Warm, human, encouraging
+- End with something hopeful or a gentle nudge forward
 
-SPECIFIC SCENARIOS (respond accordingly):
-- Body image / feeling ugly: Affirm their worth. "Beauty is so much more than appearance—it's your kindness, your strength, the way you care. You have value that no one can take away. I see you, and you matter."
-- Emotional breakdown: "It's okay to fall apart sometimes. You're human. What you're feeling is valid. Take a breath. I'm here. You don't have to hold it all together right now."
-- Lost something (phone, etc.): Acknowledge the frustration, offer practical comfort. "Losing things is stressful—I get it. It's okay to feel upset. These things happen. Is there someone who can help you look or report it?"
-- Relationship issues: Listen, validate, don't take sides. "Relationships can be really hard. Your feelings matter. Would you like to talk more about what's going on?"
-- Self-esteem / "not good enough": "You are enough. You don't have to be perfect to deserve kindness—including from yourself. I believe in you."
-- Loneliness: "Feeling alone is painful. You're not broken for feeling this way. Reaching out—even here—takes courage. I'm glad you did."
+TONE: Supportive + motivating. Like a friend saying "I believe in you. You've got this."
 
-Never: diagnose, prescribe, or sound cold. Always: be warm, human, and make them feel helped."""
+SCENARIOS:
+- "Am I a bad person?" / guilt: "Feeling guilty doesn't make you bad—it means you care. Everyone makes mistakes. What matters is that you're trying. You're not defined by one moment. I believe in your ability to grow."
+- Body image / ugly: Affirm worth. "Beauty is your kindness, strength, the way you care. You have value. I see you, and you matter."
+- Upset / frustrated: Validate, then help. "It's okay to feel upset. What's one small thing that might help right now—a breath, a walk, talking it out?"
+- Emotional breakdown: "It's okay to fall apart. You're human. Take a breath. I'm here. You don't have to have it all figured out. One step at a time."
+- Self-esteem: "You are enough. I believe in you. What's one small win you've had lately? Sometimes that helps us see our strength."
+
+When they ask about YOU (the chatbot): "I'm here for you—that's what matters. How are you really doing? I'm listening."
+
+Never: diagnose, prescribe, or sound cold. Always: warm, motivating, help them move forward."""
 
 
 def is_crisis_message(text: str) -> bool:
     """Check if message contains crisis keywords."""
     msg_lower = text.lower().strip()
-    return any(kw in msg_lower for kw in CRISIS_KEYWORDS)
+    if any(kw in msg_lower for kw in CRISIS_KEYWORDS):
+        return True
+    # Overdose: "100" or "all" + medicine/pills
+    if ("medicine" in msg_lower or "pills" in msg_lower) and ("100" in msg_lower or "all" in msg_lower or "many" in msg_lower):
+        return True
+    return False
 
 
 def get_crisis_response() -> tuple[str, bool]:
@@ -68,8 +79,34 @@ def get_crisis_response() -> tuple[str, bool]:
 
 
 def get_fallback_response(user_message: str) -> str:
-    """Empathetic fallback when AI fails—caring, specific responses for many use cases."""
+    """Empathetic fallback when AI fails—caring, motivating responses for many use cases."""
     msg = user_message.lower()
+
+    # Bad person / guilt / shame
+    if any(w in msg for w in ["bad person", "am i bad", "am i evil", "guilty", "guilt", "shame", "did something wrong", "terrible person"]):
+        return (
+            "Feeling guilty doesn't make you a bad person—it means you care. Everyone makes mistakes. "
+            "What matters is that you're trying to be better. You're not defined by one moment or one choice. "
+            "I believe in your ability to grow and move forward. Would you like to talk about what's weighing on you? "
+            "I'm here, no judgment."
+        )
+
+    # Upset (general)
+    if any(w in msg for w in ["upset", "unhappy", "not okay", "not ok", "feeling bad", "feel bad"]):
+        return (
+            "I'm sorry you're feeling upset. It's okay to feel this way—your feelings are valid. "
+            "Sometimes it helps to take a breath, or to talk about what's going on. "
+            "You don't have to figure it all out right now. What would feel most helpful—talking, or a small step to feel a bit better? "
+            "I'm here for you."
+        )
+
+    # Meta questions about the chatbot
+    if any(w in msg for w in ["are you ", "you a bot", "you a chatbot", "happy to be", "who are you", "what are you"]):
+        return (
+            "I'm here for you—that's what matters most. I'm a support chatbot, and I care about how you're doing. "
+            "How are you really feeling today? I'm listening, and I want to help. "
+            "You can share anything—I'm not here to judge, just to support."
+        )
 
     # Body image / self-worth / feeling ugly
     if any(w in msg for w in ["ugly", "unattractive", "unpretty", "hideous", "look bad", "hate how i look", "feel ugly"]):
@@ -101,9 +138,9 @@ def get_fallback_response(user_message: str) -> str:
     if any(w in msg for w in ["sad", "down", "depressed", "hopeless", "miserable", "empty"]):
         return (
             "I'm really sorry you're feeling this way. What you're going through sounds hard, "
-            "and it takes courage to reach out. Remember: you don't have to face this alone. "
-            "Talking to a friend, family member, or a therapist can make a real difference. "
-            "Would you like to share a bit more about what's on your mind? I'm here to listen."
+            "and it takes courage to reach out. Remember: you don't have to face this alone, and this feeling won't last forever. "
+            "Talking to someone—a friend, family member, or therapist—can make a real difference. "
+            "You've already taken a step by being here. Would you like to share more? I'm here to listen and help you move forward."
         )
 
     # Anxiety
@@ -125,13 +162,13 @@ def get_fallback_response(user_message: str) -> str:
             "You're doing your best, and that matters. What would feel most helpful right now?"
         )
 
-    # Self-esteem / not good enough
-    if any(w in msg for w in ["not good enough", "worthless", "useless", "failure", "stupid", "dumb", "can't do anything"]):
+    # Self-esteem / not good enough / stupid
+    if any(w in msg for w in ["not good enough", "worthless", "useless", "failure", "stupid", "dumb", "can't do anything", "am i stupid"]):
         return (
             "You are enough. You don't have to be perfect to deserve kindness—including from yourself. "
             "We all have moments of doubt. That doesn't define you. I believe in you. "
-            "What's one small thing you're proud of, even if it feels tiny? Sometimes that helps. "
-            "I'm here for you."
+            "What's one small thing you're proud of, even if it feels tiny? Sometimes that helps us see our strength. "
+            "You can move past this. I'm here for you."
         )
 
     # Loneliness
@@ -183,11 +220,11 @@ def get_fallback_response(user_message: str) -> str:
             "Remember, it's okay to reach out whenever you need support. Take care of yourself. 💙"
         )
 
-    # Default - warm and inviting
+    # Default - warm, motivating, inviting
     return (
-        "Thank you for sharing. I'm here to listen. "
-        "It can help to talk about what's on your mind—whether it's stress, anxiety, sadness, "
-        "how you're feeling about yourself, or anything else. What would you like to talk about?"
+        "Thank you for sharing. I'm here to listen and support you. "
+        "Whatever you're going through—stress, anxiety, sadness, or how you feel about yourself—"
+        "you don't have to face it alone. What would you like to talk about? I'm here to help you move forward."
     )
 
 
