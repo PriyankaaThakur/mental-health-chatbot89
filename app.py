@@ -120,6 +120,11 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
         )
 
 
+@app.route("/health")
+def health():
+    return "OK", 200
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
