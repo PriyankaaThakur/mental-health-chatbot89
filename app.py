@@ -28,23 +28,19 @@ CRISIS_KEYWORDS = [
     "self-harm", "self harm", "cutting", "hurt myself"
 ]
 
-SYSTEM_PROMPT = """You are a warm, empathetic mental health support assistant. Your role is to:
+SYSTEM_PROMPT = """You are a warm, caring mental health support assistant—like a supportive friend who truly listens.
 
-- Listen actively and validate feelings without judgment
-- Offer emotional support and evidence-based coping strategies
-- Encourage professional help when appropriate (therapist, counselor, doctor)
-- Use a calm, reassuring tone
-- Keep responses concise but supportive (2-4 short paragraphs max)
-- Never diagnose conditions or prescribe treatments
-- Never replace professional mental health care
+Your approach:
+- Validate feelings first: "I hear you", "That sounds really hard", "Your feelings make sense"
+- Show genuine care and concern in every response
+- Offer practical, gentle coping suggestions
+- Keep responses conversational (2-3 short paragraphs)—not robotic or clinical
+- Use "you" and speak directly to the person
+- When they share something difficult, acknowledge it before offering advice
 
-Important boundaries:
-- You are NOT a licensed therapist, psychiatrist, or medical professional
-- Always recommend speaking with a professional for ongoing or severe concerns
-- If someone mentions crisis, self-harm, or suicide, you will be interrupted—emergency resources will be shown separately
-- Be supportive but never make promises you cannot keep
+Example tone: "I'm really sorry you're going through this. Feeling [X] can be exhausting. Have you tried [gentle suggestion]? And remember, it's okay to reach out to a therapist if things feel too heavy—they're there to help."
 
-Respond naturally, like a caring friend who wants to help."""
+Never: diagnose, prescribe, or sound cold. Always: be warm, human, and supportive."""
 
 
 def is_crisis_message(text: str) -> bool:
@@ -66,19 +62,62 @@ def get_crisis_response() -> tuple[str, bool]:
     )
 
 
+def get_fallback_response(user_message: str) -> str:
+    """Empathetic fallback when AI fails—never show errors to the user."""
+    msg = user_message.lower()
+    if any(w in msg for w in ["sad", "down", "depressed", "hopeless", "lonely"]):
+        return (
+            "I'm really sorry you're feeling this way. What you're going through sounds hard, "
+            "and it takes courage to reach out. Remember: you don't have to face this alone. "
+            "Talking to a friend, family member, or a therapist can make a real difference. "
+            "Would you like to share a bit more about what's on your mind? I'm here to listen."
+        )
+    if any(w in msg for w in ["anxious", "anxiety", "worried", "nervous", "panic"]):
+        return (
+            "Anxiety can feel overwhelming—I hear you. Try taking a few slow breaths: "
+            "breathe in for 4 counts, hold for 4, breathe out for 6. "
+            "Grounding can help too: name 5 things you can see, 4 you can hear, 3 you can touch. "
+            "If anxiety is affecting your daily life, a therapist can offer tools that really help. "
+            "What's been weighing on you lately?"
+        )
+    if any(w in msg for w in ["stress", "stressed", "overwhelmed", "pressure"]):
+        return (
+            "Feeling overwhelmed is exhausting, and it's okay to admit that. "
+            "Try breaking things into smaller steps—even one small thing at a time helps. "
+            "Short breaks, a walk, or talking to someone you trust can lighten the load. "
+            "You're doing your best, and that matters. What would feel most helpful right now?"
+        )
+    if any(w in msg for w in ["hi", "hello", "hey"]):
+        return (
+            "Hi there. I'm here to listen and support you. "
+            "You can share how you're feeling—stress, anxiety, sadness, or anything else. "
+            "How are you doing today?"
+        )
+    if any(w in msg for w in ["thank", "thanks"]):
+        return (
+            "You're welcome. I'm glad I could be here for you. "
+            "Remember, it's okay to reach out whenever you need support. Take care of yourself."
+        )
+    return (
+        "Thank you for sharing. I'm here to listen. "
+        "It can help to talk about what's on your mind—whether it's stress, anxiety, sadness, or something else. "
+        "What would you like to talk about?"
+    )
+
+
 def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
-    """Get AI response from Gemini (free) or OpenAI. Returns (response_text, is_crisis)."""
+    """Get AI response. Tries Gemini → Groq → OpenAI. Falls back to empathetic response if all fail."""
     gemini_key = os.environ.get("GEMINI_API_KEY")
+    groq_key = os.environ.get("GROQ_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
 
-    if not gemini_key and not openai_key:
+    if not gemini_key and not groq_key and not openai_key:
         return (
             "AI is not configured yet. Add GEMINI_API_KEY (free at aistudio.google.com/apikey) "
-            "or OPENAI_API_KEY in Render → Environment, then redeploy.",
+            "or GROQ_API_KEY (free at console.groq.com) in Render → Environment, then redeploy.",
             False,
         )
 
-    # Get or create conversation history
     if session_id not in conversations:
         conversations[session_id] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -91,22 +130,23 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
     history = conversations[session_id]
     history.append({"role": "user", "content": user_message})
 
-    # Try Gemini first (free), then OpenAI
+    result = (None, "")
     if gemini_key:
         result = _get_gemini_response(history, gemini_key)
-    else:
+    if result[0] is None and groq_key:
+        result = _get_groq_response(history, groq_key)
+    if result[0] is None and openai_key:
         result = _get_openai_response(history, openai_key)
 
-    if result[0] is None:
-        return (result[1], False)  # error message
+    if result and result[0] is not None:
+        assistant_message = result[0]
+        history.append({"role": "assistant", "content": assistant_message})
+        if len(history) > 21:
+            conversations[session_id] = [history[0]] + history[-20:]
+        return (assistant_message, False)
 
-    assistant_message = result[0]
-    history.append({"role": "assistant", "content": assistant_message})
-
-    if len(history) > 21:
-        conversations[session_id] = [history[0]] + history[-20:]
-
-    return (assistant_message, False)
+    # All AI failed—use caring fallback so user never sees an error
+    return (get_fallback_response(user_message), False)
 
 
 def _get_gemini_response(history: list, api_key: str) -> tuple[str | None, str]:
@@ -136,6 +176,28 @@ def _get_gemini_response(history: list, api_key: str) -> tuple[str | None, str]:
         if "quota" in err or "rate" in err:
             return (None, "Gemini limit reached. Try again in a moment.")
         return (None, "Sorry, I couldn't process that. Please try again.")
+
+
+def _get_groq_response(history: list, api_key: str) -> tuple[str | None, str]:
+    """Use Groq (free tier). Returns (response, error_msg)."""
+    try:
+        from groq import Groq
+
+        client = Groq(api_key=api_key)
+        response = client.chat.completions.create(
+            model=os.environ.get("GROQ_MODEL", "llama-3.3-70b-versatile"),
+            messages=history,
+            max_tokens=500,
+            temperature=0.7,
+        )
+        return (response.choices[0].message.content, "")
+    except Exception as e:
+        err = str(e).lower()
+        if "api_key" in err or "invalid" in err or "auth" in err:
+            return (None, "Invalid Groq API key.")
+        if "rate" in err or "quota" in err:
+            return (None, "")
+        return (None, "")
 
 
 def _get_openai_response(history: list, api_key: str) -> tuple[str | None, str]:
