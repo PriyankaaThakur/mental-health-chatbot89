@@ -28,19 +28,24 @@ CRISIS_KEYWORDS = [
     "self-harm", "self harm", "cutting", "hurt myself"
 ]
 
-SYSTEM_PROMPT = """You are a warm, caring mental health support assistant—like a supportive friend who truly listens.
+SYSTEM_PROMPT = """You are a warm, caring mental health support assistant—like a supportive friend who truly listens and makes people feel valued.
 
-Your approach:
+CORE RULES:
 - Validate feelings first: "I hear you", "That sounds really hard", "Your feelings make sense"
-- Show genuine care and concern in every response
-- Offer practical, gentle coping suggestions
-- Keep responses conversational (2-3 short paragraphs)—not robotic or clinical
-- Use "you" and speak directly to the person
-- When they share something difficult, acknowledge it before offering advice
+- Show genuine care—make the person feel seen and understood
+- Be specific to what they shared—don't give generic replies
+- Use "you" and speak directly. Be warm, not clinical
+- Keep responses 2-3 short paragraphs—conversational, not robotic
 
-Example tone: "I'm really sorry you're going through this. Feeling [X] can be exhausting. Have you tried [gentle suggestion]? And remember, it's okay to reach out to a therapist if things feel too heavy—they're there to help."
+SPECIFIC SCENARIOS (respond accordingly):
+- Body image / feeling ugly: Affirm their worth. "Beauty is so much more than appearance—it's your kindness, your strength, the way you care. You have value that no one can take away. I see you, and you matter."
+- Emotional breakdown: "It's okay to fall apart sometimes. You're human. What you're feeling is valid. Take a breath. I'm here. You don't have to hold it all together right now."
+- Lost something (phone, etc.): Acknowledge the frustration, offer practical comfort. "Losing things is stressful—I get it. It's okay to feel upset. These things happen. Is there someone who can help you look or report it?"
+- Relationship issues: Listen, validate, don't take sides. "Relationships can be really hard. Your feelings matter. Would you like to talk more about what's going on?"
+- Self-esteem / "not good enough": "You are enough. You don't have to be perfect to deserve kindness—including from yourself. I believe in you."
+- Loneliness: "Feeling alone is painful. You're not broken for feeling this way. Reaching out—even here—takes courage. I'm glad you did."
 
-Never: diagnose, prescribe, or sound cold. Always: be warm, human, and supportive."""
+Never: diagnose, prescribe, or sound cold. Always: be warm, human, and make them feel helped."""
 
 
 def is_crisis_message(text: str) -> bool:
@@ -63,16 +68,46 @@ def get_crisis_response() -> tuple[str, bool]:
 
 
 def get_fallback_response(user_message: str) -> str:
-    """Empathetic fallback when AI fails—never show errors to the user."""
+    """Empathetic fallback when AI fails—caring, specific responses for many use cases."""
     msg = user_message.lower()
-    if any(w in msg for w in ["sad", "down", "depressed", "hopeless", "lonely"]):
+
+    # Body image / self-worth / feeling ugly
+    if any(w in msg for w in ["ugly", "unattractive", "unpretty", "hideous", "look bad", "hate how i look", "feel ugly"]):
+        return (
+            "I want you to know that beauty is so much more than what we see in the mirror. "
+            "It's your kindness, your strength, the way you care about others, the things that make you *you*. "
+            "Everyone has their own unique beauty—including you. You have value that no one can take away. "
+            "I see you, and you matter. Would you like to talk more about what's been on your mind?"
+        )
+
+    # Emotional breakdown / overwhelmed
+    if any(w in msg for w in ["breakdown", "breaking down", "falling apart", "can't take it", "can't cope", "losing it"]):
+        return (
+            "It's okay to fall apart sometimes. You're human—and what you're feeling is valid. "
+            "You don't have to hold it all together right now. Take a breath. I'm here with you. "
+            "When things feel too heavy, it helps to talk. Would you like to share what's going on? "
+            "No judgment—just support."
+        )
+
+    # Lost something (phone, keys, etc.)
+    if any(w in msg for w in ["lost my", "lost the", "can't find", "misplaced", "stolen"]):
+        return (
+            "Losing something important is really frustrating—I get it. It's okay to feel upset or stressed. "
+            "These things happen to everyone. Is there someone who can help you look, or help you report it if needed? "
+            "And remember—things can be replaced. You matter more. How are you holding up?"
+        )
+
+    # Sadness / depression
+    if any(w in msg for w in ["sad", "down", "depressed", "hopeless", "miserable", "empty"]):
         return (
             "I'm really sorry you're feeling this way. What you're going through sounds hard, "
             "and it takes courage to reach out. Remember: you don't have to face this alone. "
             "Talking to a friend, family member, or a therapist can make a real difference. "
             "Would you like to share a bit more about what's on your mind? I'm here to listen."
         )
-    if any(w in msg for w in ["anxious", "anxiety", "worried", "nervous", "panic"]):
+
+    # Anxiety
+    if any(w in msg for w in ["anxious", "anxiety", "worried", "nervous", "panic", "scared"]):
         return (
             "Anxiety can feel overwhelming—I hear you. Try taking a few slow breaths: "
             "breathe in for 4 counts, hold for 4, breathe out for 6. "
@@ -80,28 +115,79 @@ def get_fallback_response(user_message: str) -> str:
             "If anxiety is affecting your daily life, a therapist can offer tools that really help. "
             "What's been weighing on you lately?"
         )
-    if any(w in msg for w in ["stress", "stressed", "overwhelmed", "pressure"]):
+
+    # Stress / overwhelm
+    if any(w in msg for w in ["stress", "stressed", "overwhelmed", "pressure", "burnout", "too much"]):
         return (
             "Feeling overwhelmed is exhausting, and it's okay to admit that. "
             "Try breaking things into smaller steps—even one small thing at a time helps. "
             "Short breaks, a walk, or talking to someone you trust can lighten the load. "
             "You're doing your best, and that matters. What would feel most helpful right now?"
         )
-    if any(w in msg for w in ["hi", "hello", "hey"]):
+
+    # Self-esteem / not good enough
+    if any(w in msg for w in ["not good enough", "worthless", "useless", "failure", "stupid", "dumb", "can't do anything"]):
         return (
-            "Hi there. I'm here to listen and support you. "
+            "You are enough. You don't have to be perfect to deserve kindness—including from yourself. "
+            "We all have moments of doubt. That doesn't define you. I believe in you. "
+            "What's one small thing you're proud of, even if it feels tiny? Sometimes that helps. "
+            "I'm here for you."
+        )
+
+    # Loneliness
+    if any(w in msg for w in ["lonely", "alone", "no friends", "isolated", "left out"]):
+        return (
+            "Feeling alone is really painful—I'm sorry you're going through that. "
+            "You're not broken for feeling this way. Reaching out—even here—takes courage, and I'm glad you did. "
+            "Connection can start small: a text to someone, a walk in a busy place, or even just being here. "
+            "You matter. Would you like to talk more?"
+        )
+
+    # Relationship / breakup / fight
+    if any(w in msg for w in ["breakup", "broke up", "relationship", "fight", "argument", "ex", "boyfriend", "girlfriend"]):
+        return (
+            "Relationships can be really hard—whether it's a breakup, a fight, or something else. "
+            "Your feelings are valid. It's okay to hurt. Would you like to talk about what happened? "
+            "I'm here to listen, no judgment. Sometimes just sharing can help."
+        )
+
+    # Sleep issues
+    if any(w in msg for w in ["can't sleep", "insomnia", "tired", "exhausted", "no sleep"]):
+        return (
+            "Not being able to sleep is exhausting and frustrating. I hear you. "
+            "Try a wind-down routine: dim lights, no screens 30 min before bed, maybe some gentle music. "
+            "If sleep problems persist, a doctor or therapist can help. "
+            "How long has this been going on? I'm here to listen."
+        )
+
+    # Anger / frustration
+    if any(w in msg for w in ["angry", "mad", "frustrated", "annoyed", "pissed"]):
+        return (
+            "It's okay to feel angry or frustrated—those feelings are valid. "
+            "Sometimes we need to let it out. Try taking a few deep breaths, or stepping away for a moment. "
+            "What's been bothering you? I'm here to listen."
+        )
+
+    # Greetings
+    if any(w in msg for w in ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]):
+        return (
+            "Hi there! I'm here to listen and support you. "
             "You can share how you're feeling—stress, anxiety, sadness, or anything else. "
             "How are you doing today?"
         )
-    if any(w in msg for w in ["thank", "thanks"]):
+
+    # Thanks
+    if any(w in msg for w in ["thank", "thanks", "appreciate"]):
         return (
-            "You're welcome. I'm glad I could be here for you. "
-            "Remember, it's okay to reach out whenever you need support. Take care of yourself."
+            "You're welcome. I'm really glad I could be here for you. "
+            "Remember, it's okay to reach out whenever you need support. Take care of yourself. 💙"
         )
+
+    # Default - warm and inviting
     return (
         "Thank you for sharing. I'm here to listen. "
-        "It can help to talk about what's on your mind—whether it's stress, anxiety, sadness, or something else. "
-        "What would you like to talk about?"
+        "It can help to talk about what's on your mind—whether it's stress, anxiety, sadness, "
+        "how you're feeling about yourself, or anything else. What would you like to talk about?"
     )
 
 
