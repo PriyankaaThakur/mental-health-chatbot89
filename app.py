@@ -67,12 +67,14 @@ def get_crisis_response() -> tuple[str, bool]:
 
 
 def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
-    """Get AI response from OpenAI. Returns (response_text, is_crisis)."""
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
+    """Get AI response from Gemini (free) or OpenAI. Returns (response_text, is_crisis)."""
+    gemini_key = os.environ.get("GEMINI_API_KEY")
+    openai_key = os.environ.get("OPENAI_API_KEY")
+
+    if not gemini_key and not openai_key:
         return (
-            "AI support is not configured. Please set OPENAI_API_KEY in your environment. "
-            "You can get an API key from https://platform.openai.com/api-keys",
+            "AI is not configured yet. Add GEMINI_API_KEY (free at aistudio.google.com/apikey) "
+            "or OPENAI_API_KEY in Render → Environment, then redeploy.",
             False,
         )
 
@@ -89,6 +91,55 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
     history = conversations[session_id]
     history.append({"role": "user", "content": user_message})
 
+    # Try Gemini first (free), then OpenAI
+    if gemini_key:
+        result = _get_gemini_response(history, gemini_key)
+    else:
+        result = _get_openai_response(history, openai_key)
+
+    if result[0] is None:
+        return (result[1], False)  # error message
+
+    assistant_message = result[0]
+    history.append({"role": "assistant", "content": assistant_message})
+
+    if len(history) > 21:
+        conversations[session_id] = [history[0]] + history[-20:]
+
+    return (assistant_message, False)
+
+
+def _get_gemini_response(history: list, api_key: str) -> tuple[str | None, str]:
+    """Use Google Gemini (free). Returns (response, error_msg)."""
+    try:
+        import google.generativeai as genai
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel(
+            model_name=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
+            system_instruction=SYSTEM_PROMPT,
+        )
+
+        # Build chat with history (skip system message)
+        gemini_history = []
+        for msg in history[1:-1]:  # skip system, skip last (current user)
+            role = "user" if msg["role"] == "user" else "model"
+            gemini_history.append({"role": role, "parts": [msg["content"]]})
+
+        chat = model.start_chat(history=gemini_history)
+        response = chat.send_message(history[-1]["content"])
+        return (response.text, "")
+    except Exception as e:
+        err = str(e).lower()
+        if "api_key" in err or "invalid" in err:
+            return (None, "Invalid Gemini API key. Check GEMINI_API_KEY.")
+        if "quota" in err or "rate" in err:
+            return (None, "Gemini limit reached. Try again in a moment.")
+        return (None, "Sorry, I couldn't process that. Please try again.")
+
+
+def _get_openai_response(history: list, api_key: str) -> tuple[str | None, str]:
+    """Use OpenAI. Returns (response, error_msg)."""
     try:
         from openai import OpenAI
 
@@ -99,25 +150,14 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
             max_tokens=500,
             temperature=0.7,
         )
-        assistant_message = response.choices[0].message.content
-        history.append({"role": "assistant", "content": assistant_message})
-
-        # Limit history to last 20 messages (10 exchanges) to avoid token limits
-        if len(history) > 21:
-            conversations[session_id] = [history[0]] + history[-20:]
-
-        return (assistant_message, False)
-
+        return (response.choices[0].message.content, "")
     except Exception as e:
-        error_msg = str(e).lower()
-        if "api_key" in error_msg or "authentication" in error_msg:
-            return ("Invalid or missing API key. Please check your OPENAI_API_KEY.", False)
-        if "rate" in error_msg or "quota" in error_msg:
-            return ("The service is temporarily busy. Please try again in a moment.", False)
-        return (
-            "I'm sorry, I couldn't process that right now. Please try again in a moment.",
-            False,
-        )
+        err = str(e).lower()
+        if "api_key" in err or "authentication" in err:
+            return (None, "Invalid OpenAI API key. Check OPENAI_API_KEY.")
+        if "rate" in err or "quota" in err:
+            return (None, "OpenAI limit reached. Try again in a moment.")
+        return (None, "Sorry, I couldn't process that. Please try again.")
 
 
 @app.route("/health")
