@@ -50,6 +50,8 @@ SCENARIOS (respond specifically):
 
 When they ask about YOU: "I'm here for you. How are you really doing? I'm listening."
 
+When suggesting helplines or services, use UK resources: Samaritans 116 123, Shout 85258, Mind 0300 123 3393, Beat (eating disorders) 0808 801 0677, Cruse (bereavement) 0808 808 1677.
+
 Never: generic "Thank you for sharing" without addressing their specific situation. Always: reference what they said, give relevant advice."""
 
 
@@ -65,13 +67,16 @@ def is_crisis_message(text: str) -> bool:
 
 
 def get_crisis_response() -> tuple[str, bool]:
-    """Return emergency resources. Second value indicates is_crisis."""
+    """Return emergency resources (UK). Second value indicates is_crisis."""
     return (
         "I'm really concerned about what you're sharing. "
         "Please reach out for immediate support:\n\n"
-        "• National Suicide Prevention Lifeline: 988 (US)\n"
-        "• Crisis Text Line: Text HOME to 741741\n"
-        "• International Association for Suicide Prevention: https://www.iasp.info/resources/Crisis_Centres/\n\n"
+        "• Samaritans: 116 123 (24/7, free)\n"
+        "• Shout: Text SHOUT to 85258 (24/7, free)\n"
+        "• Papyrus HopelineUK: 0800 068 4141 (under 35, 9am–midnight)\n"
+        "• CALM: 0800 58 58 58 (5pm–midnight)\n"
+        "• Mind: 0300 123 3393 (Mon–Fri 9am–6pm)\n"
+        "• Emergency: 999 or NHS 111\n\n"
         "You don't have to face this alone. These services are free and confidential.",
         True,
     )
@@ -205,8 +210,129 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
             "And remember—things can be replaced. You matter more. How are you holding up?"
         )
 
+    # OCD / intrusive thoughts
+    if any(w in msg for w in ["ocd", "intrusive thoughts", "cant stop thinking", "can't stop thinking", "repetitive thoughts", "obsessive", "compulsive", "unwanted thoughts"]):
+        return (
+            "Intrusive or repetitive thoughts can be really distressing—I hear you. "
+            "You're not alone in experiencing this. OCD and similar struggles are treatable. "
+            "A therapist, especially one trained in CBT, can help you learn to manage these thoughts. "
+            "In the moment: try grounding (5 things you see, 4 you hear, 3 you touch). "
+            "Be gentle with yourself. Would you like to talk more about what you're experiencing?"
+        )
+
+    # PTSD / trauma
+    if any(w in msg for w in ["ptsd", "trauma", "traumatised", "traumatized", "flashback", "flashbacks", "nightmares", "triggered", "past abuse", "abused"]):
+        return (
+            "Living with trauma can be exhausting and overwhelming. What you've been through matters, "
+            "and your reactions make sense. Healing takes time. A trauma-informed therapist can help you "
+            "work through this in a safe way. For now: you're safe in this moment. Grounding can help—"
+            "name 5 things you can see, 4 you can hear, 3 you can touch. "
+            "You don't have to face this alone. Would you like to share more?"
+        )
+
+    # Eating disorders
+    if any(w in msg for w in ["eating disorder", "anorexia", "bulimia", "binge eating", "not eating", "starving myself", "purge", "body image", "weight obsession"]):
+        return (
+            "Struggling with food and body image is really hard—and you deserve support. "
+            "Eating disorders are serious but treatable. Beat (beateatingdisorders.org.uk) offers UK support: 0808 801 0677. "
+            "A GP or eating disorder specialist can help. You're not alone in this. "
+            "Would you like to talk about what you're going through?"
+        )
+
+    # Grief / bereavement
+    if any(w in msg for w in ["grief", "grieving", "bereavement", "lost someone", "someone died", "death of", "passed away", "mourning"]):
+        return (
+            "Grief is one of the hardest things we go through. There's no right way to feel—"
+            "sadness, anger, numbness, confusion—all of it is valid. "
+            "Cruse Bereavement Care (cruse.org.uk) offers UK support: 0808 808 1677. "
+            "Be gentle with yourself. Healing doesn't happen overnight. "
+            "Would you like to talk about the person you've lost?"
+        )
+
+    # Social anxiety
+    if any(w in msg for w in ["social anxiety", "socially anxious", "awkward around people", "fear of people", "scared of people", "cant talk to people", "can't talk to people"]):
+        return (
+            "Social anxiety can feel really isolating—I hear you. It's more common than people think. "
+            "Small steps help: maybe start with one short conversation, or a small group. "
+            "A therapist can teach you CBT techniques that really work for social anxiety. "
+            "You're not weird or broken. Would you like to talk about what situations feel hardest?"
+        )
+
+    # Phobias / specific fears
+    if any(w in msg for w in ["phobia", "phobic", "terrified of", "scared of", "fear of", "afraid of"]):
+        return (
+            "Phobias can feel overwhelming—your fear is real and valid. "
+            "The good news: they're very treatable. Exposure therapy and CBT can help. "
+            "A therapist can work with you gradually. You don't have to face this alone. "
+            "What's been triggering you?"
+        )
+
+    # Burnout / exhaustion
+    if any(w in msg for w in ["burnout", "burned out", "burnt out", "exhausted", "drained", "no energy", "no motivation"]):
+        return (
+            "Burnout can leave you feeling empty and exhausted—I hear you. "
+            "Rest isn't selfish. Your body and mind are telling you they need a break. "
+            "Even small steps help: a short walk, saying no to one thing, talking to someone. "
+            "If work or study is the cause, consider speaking to a GP or occupational health. "
+            "You deserve to feel better. What would feel most manageable right now?"
+        )
+
+    # Imposter syndrome / fear of failure
+    if any(w in msg for w in ["imposter", "impostor", "fraud", "don't deserve", "fear of failure", "failing", "will fail"]):
+        return (
+            "Imposter syndrome is so common—even people who seem confident feel it. "
+            "You're not a fraud. You've gotten where you are for a reason. "
+            "Try writing down one thing you've done well recently. Sometimes we're our own harshest critic. "
+            "A therapist can help you challenge these thoughts. You're capable. I believe in you."
+        )
+
+    # Perfectionism
+    if any(w in msg for w in ["perfectionist", "perfectionism", "must be perfect", "anything less than perfect"]):
+        return (
+            "Perfectionism can be exhausting—it's hard to feel like nothing is ever good enough. "
+            "Done is often better than perfect. Try allowing yourself one 'good enough' today. "
+            "Your worth isn't tied to your output. A therapist can help you ease these standards. "
+            "Be kind to yourself. You're doing your best."
+        )
+
+    # Family issues
+    if any(w in msg for w in ["family", "parents", "mother", "father", "mum", "dad", "sibling", "brother", "sister", "family conflict"]):
+        return (
+            "Family issues can be really painful—they're the people we're supposed to feel closest to. "
+            "Your feelings are valid. Family conflict doesn't mean you're a bad person. "
+            "Relate (relate.org.uk) offers UK relationship and family counselling. "
+            "Talking to a therapist can help you understand and cope. Would you like to share more?"
+        )
+
+    # Bullying
+    if any(w in msg for w in ["bullied", "bullying", "bully", "picked on", "harassed"]):
+        return (
+            "Being bullied is never your fault. It's painful and isolating—I'm sorry you're going through that. "
+            "You deserve to feel safe. If it's at school or work, consider telling someone in authority. "
+            "Bullying UK and Mind have resources. You're not alone. "
+            "Would you like to talk about what's been happening?"
+        )
+
+    # Health anxiety
+    if any(w in msg for w in ["health anxiety", "hypochondria", "hypochondriac", "worried about my health", "think i'm sick", "convinced i have"]):
+        return (
+            "Health anxiety can be really distressing—constantly worrying about illness is exhausting. "
+            "Your feelings are valid. A GP can help rule out health concerns and refer you if needed. "
+            "CBT is often effective for health anxiety. Try limiting how often you search symptoms online. "
+            "You're not alone in this. Would you like to talk more?"
+        )
+
+    # Numbness / detachment
+    if any(w in msg for w in ["numb", "numbness", "detached", "disconnected", "feel nothing", "empty inside", "going through motions"]):
+        return (
+            "Feeling numb or disconnected can be scary—like you're watching life from the outside. "
+            "It's often a way our mind protects us when things feel too much. "
+            "It's not permanent. Talking to a therapist can help you understand and reconnect. "
+            "Be gentle with yourself. Would you like to talk about what might have led to this?"
+        )
+
     # Sadness / depression
-    if any(w in msg for w in ["sad", "down", "depressed", "hopeless", "miserable", "empty"]):
+    if any(w in msg for w in ["sad", "down", "depressed", "hopeless", "miserable", "empty", "low mood", "feeling low"]):
         return (
             "I'm really sorry you're feeling this way. What you're going through sounds hard, "
             "and it takes courage to reach out. Remember: you don't have to face this alone, and this feeling won't last forever. "
@@ -214,8 +340,63 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
             "You've already taken a step by being here. Would you like to share more? I'm here to listen and help you move forward."
         )
 
+    # Panic attacks (more specific)
+    if any(w in msg for w in ["panic attack", "panic attacks", "had a panic", "having a panic"]):
+        return (
+            "Panic attacks can feel terrifying—like you're losing control. You're not. "
+            "Try: breathe in slowly for 4, hold for 4, breathe out for 6. Repeat. "
+            "Grounding: name 5 things you see, 4 you hear, 3 you can touch. "
+            "It will pass. You're safe. If panic attacks are frequent, a GP or therapist can help. "
+            "How are you feeling now?"
+        )
+
+    # Work / school stress
+    if any(w in msg for w in ["work stress", "job stress", "boss", "colleague", "exam", "exams", "deadline", "deadlines", "assignment", "university", "college"]):
+        return (
+            "Work or study stress can be really draining. It's okay to feel overwhelmed. "
+            "Break things into smaller steps. Talk to a tutor, manager, or HR if things feel unmanageable. "
+            "Your wellbeing matters more than any grade or project. "
+            "What's feeling most urgent right now?"
+        )
+
+    # ADHD
+    if any(w in msg for w in ["adhd", "add", "focus", "concentration", "can't focus", "cant concentrate", "distracted", "easily distracted"]):
+        return (
+            "Struggling with focus or concentration can be really frustrating. "
+            "It doesn't mean you're lazy—many people have ADHD or similar challenges. "
+            "A GP can refer you for assessment. In the meantime: break tasks into tiny steps, use timers, "
+            "and be kind to yourself. You're not broken. Would you like to talk more?"
+        )
+
+    # Jealousy / comparison
+    if any(w in msg for w in ["jealous", "jealousy", "comparing myself", "compare myself", "everyone else is", "others have it better"]):
+        return (
+            "Comparing yourself to others can be really painful—it's human, but it's not helpful. "
+            "Everyone's journey is different. What you see of others is often a highlight reel. "
+            "Try focusing on one small thing you're grateful for or proud of. "
+            "You're on your own path. Be kind to yourself."
+        )
+
+    # Rejection / insecurity
+    if any(w in msg for w in ["rejected", "rejection", "insecure", "insecurity", "not good enough for"]):
+        return (
+            "Rejection and insecurity hurt—I hear you. Your worth isn't defined by one person's opinion. "
+            "It's okay to feel upset. Be gentle with yourself. "
+            "Talking to someone you trust, or a therapist, can help. "
+            "You matter. Would you like to talk more about what happened?"
+        )
+
+    # Low motivation
+    if any(w in msg for w in ["no motivation", "unmotivated", "cant get out of bed", "can't get out of bed", "procrastinating", "procrastination"]):
+        return (
+            "Low motivation can be a sign of depression or burnout—it's not laziness. "
+            "Be gentle with yourself. Even one small step counts: get out of bed, take a shower, go outside for 5 minutes. "
+            "If this has lasted a while, a GP can help. You're not alone in feeling this way. "
+            "What's one tiny thing you could do today?"
+        )
+
     # Anxiety
-    if any(w in msg for w in ["anxious", "anxiety", "worried", "nervous", "panic", "scared"]):
+    if any(w in msg for w in ["anxious", "anxiety", "worried", "nervous", "panic", "scared", "frightened", "afraid"]):
         return (
             "Anxiety can feel overwhelming—I hear you. Try taking a few slow breaths: "
             "breathe in for 4 counts, hold for 4, breathe out for 6. "
@@ -275,8 +456,8 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
             "How long has this been going on? I'm here to listen."
         )
 
-    # Anger / frustration
-    if any(w in msg for w in ["angry", "mad", "frustrated", "annoyed", "pissed"]):
+    # Irritability / anger
+    if any(w in msg for w in ["angry", "mad", "frustrated", "annoyed", "pissed", "irritable", "irritated", "short temper", "losing my temper"]):
         return (
             "It's okay to feel angry or frustrated—those feelings are valid. "
             "Sometimes we need to let it out. Try taking a few deep breaths, or stepping away for a moment. "
