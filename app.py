@@ -33,25 +33,24 @@ CRISIS_KEYWORDS = [
 
 SYSTEM_PROMPT = """You are a warm, motivating mental health support assistant—like a caring friend who helps people feel better and move forward.
 
+CRITICAL: Be SPECIFIC to what they shared. Never give the same generic response twice. Use the conversation context.
+
 CORE RULES:
 - Validate first, then motivate: "I hear you" → "You can get through this" → gentle next step
-- Help them move on: offer hope, small actionable steps, remind them of their strength
-- Be specific to what they shared—never generic
+- Reference what they said: "You mentioned your dress broke..." or "You said you don't trust anyone..."
+- Offer hope + small actionable steps
 - Use "you" directly. Warm, human, encouraging
-- End with something hopeful or a gentle nudge forward
 
-TONE: Supportive + motivating. Like a friend saying "I believe in you. You've got this."
+SCENARIOS (respond specifically):
+- Dress/clothes broke: "I'm sorry your dress broke—that's frustrating. Can you fix it or find an alternative? Remember, a dress doesn't define you."
+- Don't trust anyone: "Not being able to trust can feel lonely. It's understandable if you've been hurt. Trust can be rebuilt slowly. A therapist can help."
+- Don't like anyone / what's wrong with me: "Feeling disconnected doesn't mean something is wrong with you. Sometimes we need time to heal. Be gentle with yourself."
+- "What should I do?": Use the conversation! If they said they don't trust people, give advice about trust. If they said dress broke, give practical + emotional support.
+- Stress + specific cause: Address the cause (dress, work, etc.) then offer coping steps.
 
-SCENARIOS:
-- "Am I a bad person?" / guilt: "Feeling guilty doesn't make you bad—it means you care. Everyone makes mistakes. What matters is that you're trying. You're not defined by one moment. I believe in your ability to grow."
-- Body image / ugly: Affirm worth. "Beauty is your kindness, strength, the way you care. You have value. I see you, and you matter."
-- Upset / frustrated: Validate, then help. "It's okay to feel upset. What's one small thing that might help right now—a breath, a walk, talking it out?"
-- Emotional breakdown: "It's okay to fall apart. You're human. Take a breath. I'm here. You don't have to have it all figured out. One step at a time."
-- Self-esteem: "You are enough. I believe in you. What's one small win you've had lately? Sometimes that helps us see our strength."
+When they ask about YOU: "I'm here for you. How are you really doing? I'm listening."
 
-When they ask about YOU (the chatbot): "I'm here for you—that's what matters. How are you really doing? I'm listening."
-
-Never: diagnose, prescribe, or sound cold. Always: warm, motivating, help them move forward."""
+Never: generic "Thank you for sharing" without addressing their specific situation. Always: reference what they said, give relevant advice."""
 
 
 def is_crisis_message(text: str) -> bool:
@@ -78,9 +77,81 @@ def get_crisis_response() -> tuple[str, bool]:
     )
 
 
-def get_fallback_response(user_message: str) -> str:
-    """Empathetic fallback when AI fails—caring, motivating responses for many use cases."""
+def _get_recent_user_messages(history: list) -> list[str]:
+    """Extract recent user messages from conversation for context."""
+    return [m["content"].lower() for m in history if m.get("role") == "user"][-5:]
+
+
+def get_fallback_response(user_message: str, recent_context: list[str] | None = None) -> str:
+    """Context-aware fallback when AI fails—specific, logical responses."""
     msg = user_message.lower()
+    context = " ".join(recent_context or [])
+    full_context = f"{context} {msg}"
+
+    # Follow-up questions - use conversation context for relevant advice
+    if any(w in msg for w in ["what should i do", "what can i do", "what do you think", "what would you do", "any advice", "help me"]):
+        if any(w in full_context for w in ["trust", "don't trust", "trust anyone"]):
+            return (
+                "Based on what you've shared about trust—it's understandable if you've been hurt before. "
+                "Trust can be rebuilt slowly. Start with one small step: maybe share something small with someone you feel safest with. "
+                "You don't have to trust everyone. A therapist can also help you work through this in a safe space. "
+                "You're not alone in feeling this way. What feels like the hardest part right now?"
+            )
+        if any(w in full_context for w in ["don't like", "don't like anyone", "whats wrong", "wrong with me"]):
+            return (
+                "Feeling disconnected from people doesn't mean something is wrong with you. "
+                "Sometimes we go through phases, or we need time to heal from past hurts. "
+                "A few things that might help: be gentle with yourself, try one small social step (even a short chat), "
+                "or talk to a therapist to explore what's going on. You don't have to figure it all out today. "
+                "What would feel manageable right now?"
+            )
+        if any(w in full_context for w in ["dress", "broke", "broken", "stress"]):
+            return (
+                "When small things like a broken dress add to our stress, it can feel overwhelming. "
+                "First: it's okay to feel frustrated. Second: can you fix it, borrow something, or get a replacement? "
+                "Third: remember—a dress is just a thing. You matter more. Take a breath. "
+                "What's one small step you can take right now to feel a bit better?"
+            )
+        return (
+            "Here's what might help: take one small step at a time. Be gentle with yourself. "
+            "Talking to someone you trust—a friend, family member, or therapist—can make a big difference. "
+            "You don't have to have all the answers. What feels most doable for you right now?"
+        )
+
+    # Trust issues
+    if any(w in msg for w in ["don't trust", "dont trust", "can't trust", "cant trust", "trust anyone", "trust nobody", "dont trust anyone", "don't trust anyone"]):
+        return (
+            "Not being able to trust people can feel really lonely and isolating. "
+            "It's understandable if you've been hurt before—that can make it hard to open up. "
+            "Trust can be built slowly, one small step at a time. You don't have to trust everyone. "
+            "Would you like to talk about what happened? I'm here, and I'm not going anywhere. "
+            "A therapist can also help you work through this in a safe way."
+        )
+
+    # Don't like anyone / disconnected / what's wrong with me
+    if any(w in msg for w in ["don't like anyone", "dont like anyone", "dont like", "whats wrong w me", "wrong with me", "idk whats wrong", "something wrong with me"]):
+        return (
+            "Feeling disconnected from people can be confusing and lonely. "
+            "It doesn't mean something is wrong with you—sometimes we go through phases, or we need time to heal. "
+            "It could be depression, past hurt, or just needing a break. You don't have to have it all figured out. "
+            "Talking to a therapist can help you understand what's going on. "
+            "For now: be kind to yourself. You're not broken. Would you like to talk more about what you're feeling?"
+        )
+
+    # Things broke / practical problems (dress, etc.)
+    if any(w in msg for w in ["broke", "broken", "tore", "ripped", "ruined"]):
+        if "dress" in msg or "clothes" in msg or "outfit" in msg:
+            return (
+                "I'm sorry your dress broke—that's frustrating, especially if it mattered to you or you had plans. "
+                "It's okay to feel upset. These things happen. Can you fix it, borrow something, or find an alternative? "
+                "And remember—a dress doesn't define you. You're more than what you wear. "
+                "How are you holding up? Is there something else adding to the stress?"
+            )
+        return (
+            "I'm sorry that happened—it's frustrating when things break. "
+            "It's okay to feel upset. Can you fix it or find a workaround? "
+            "Sometimes small things feel big when we're already stressed. How are you doing?"
+        )
 
     # Bad person / guilt / shame
     if any(w in msg for w in ["bad person", "am i bad", "am i evil", "guilty", "guilt", "shame", "did something wrong", "terrible person"]):
@@ -153,8 +224,15 @@ def get_fallback_response(user_message: str) -> str:
             "What's been weighing on you lately?"
         )
 
-    # Stress / overwhelm
+    # Stress / overwhelm (check for specific cause like dress)
     if any(w in msg for w in ["stress", "stressed", "overwhelmed", "pressure", "burnout", "too much"]):
+        if "dress" in msg or "broke" in msg or "broken" in msg:
+            return (
+                "I'm sorry—when something like a broken dress adds to your stress, it can feel like a lot. "
+                "It's okay to feel overwhelmed. First: take a breath. Second: can you fix the dress, borrow something, or find another option? "
+                "Third: remember that small setbacks don't define your day. You're doing your best. "
+                "What would feel most helpful right now—practical fix, or taking a moment to decompress?"
+            )
         return (
             "Feeling overwhelmed is exhausting, and it's okay to admit that. "
             "Try breaking things into smaller steps—even one small thing at a time helps. "
@@ -268,8 +346,9 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
             conversations[session_id] = [history[0]] + history[-20:]
         return (assistant_message, False)
 
-    # All AI failed—use caring fallback so user never sees an error
-    return (get_fallback_response(user_message), False)
+    # All AI failed—use context-aware fallback
+    recent = _get_recent_user_messages(history)
+    return (get_fallback_response(user_message, recent), False)
 
 
 def _get_gemini_response(history: list, api_key: str) -> tuple[str | None, str]:
