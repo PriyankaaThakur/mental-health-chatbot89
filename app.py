@@ -41,12 +41,12 @@ CORE RULES:
 - Offer hope + small actionable steps
 - Use "you" directly. Warm, human, encouraging
 
-SCENARIOS (respond specifically):
-- Dress/clothes broke: "I'm sorry your dress broke—that's frustrating. Can you fix it or find an alternative? Remember, a dress doesn't define you."
-- Don't trust anyone: "Not being able to trust can feel lonely. It's understandable if you've been hurt. Trust can be rebuilt slowly. A therapist can help."
-- Don't like anyone / what's wrong with me: "Feeling disconnected doesn't mean something is wrong with you. Sometimes we need time to heal. Be gentle with yourself."
-- "What should I do?": Use the conversation! If they said they don't trust people, give advice about trust. If they said dress broke, give practical + emotional support.
-- Stress + specific cause: Address the cause (dress, work, etc.) then offer coping steps.
+SCENARIOS (respond specifically, give CONCRETE STEPS when they ask for solutions):
+- Cheating/infidelity: Validate betrayal, affirm their worth. "You deserve someone who chooses you."
+- Breakup / "how do I get over": Give 4-5 concrete steps: allow feelings, limit contact, lean on people, focus on self, time. Relate.org.uk.
+- "What should I do?" / "give me solution" / "how to move on": ALWAYS use conversation context. If breakup/cheating → breakup recovery steps. If sad → coping steps. Never generic.
+- "Broke my head" (idiom): Stressing over relationship. Offer steps + mention physical safety if abuse.
+- Stress + specific cause: Address the cause then offer coping steps.
 
 When they ask about YOU: "I'm here for you. How are you really doing? I'm listening."
 
@@ -61,7 +61,7 @@ def is_crisis_message(text: str) -> bool:
     if any(kw in msg_lower for kw in CRISIS_KEYWORDS):
         return True
     # Overdose: "100" or "all" + medicine/pills
-    if ("medicine" in msg_lower or "pills" in msg_lower) and ("100" in msg_lower or "all" in msg_lower or "many" in msg_lower):
+    if ("medicine" in msg_lower or "medicines" in msg_lower or "pills" in msg_lower) and ("100" in msg_lower or "all" in msg_lower or "many" in msg_lower):
         return True
     return False
 
@@ -93,34 +93,57 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
     context = " ".join(recent_context or [])
     full_context = f"{context} {msg}"
 
-    # Follow-up questions - use conversation context for relevant advice
-    if any(w in msg for w in ["what should i do", "what can i do", "what do you think", "what would you do", "any advice", "help me"]):
+    # Follow-up questions - use conversation context for relevant advice and SOLUTIONS
+    if any(w in msg for w in [
+        "what should i do", "what can i do", "what do you think", "what would you do",
+        "any advice", "help me", "how do i get over", "how can i get over", "get over from",
+        "give me solution", "give me advice", "how to move on", "how can i move on",
+        "tell me how", "can you tell me how", "solution", "what to do"
+    ]):
+        # Breakup / cheating context - give concrete steps to move on
+        if any(w in full_context for w in ["boyfriend", "girlfriend", "cheating", "cheat", "breakup", "broke up", "into another", "another girl", "another guy", "worthless", "ugly"]):
+            return (
+                "I hear you—getting over a breakup, especially when there's been cheating, is really hard. Here are some steps that help:\n\n"
+                "1. **Allow yourself to feel** – Anger, sadness, and hurt are valid. Don't rush to 'get over it'.\n"
+                "2. **Limit contact** – Unfollow, mute, or block if it helps. Out of sight can help with healing.\n"
+                "3. **Lean on people** – Talk to a friend or family member. You don't have to do this alone.\n"
+                "4. **Focus on you** – One small thing you enjoy: a walk, a film, a hobby you've neglected.\n"
+                "5. **Time** – Healing isn't linear. Some days will be harder. That's okay.\n\n"
+                "You deserve someone who chooses you. His actions say nothing about your worth. "
+                "Relate (relate.org.uk) offers relationship counselling in the UK. Would you like to talk more?"
+            )
         if any(w in full_context for w in ["trust", "don't trust", "trust anyone"]):
             return (
                 "Based on what you've shared about trust—it's understandable if you've been hurt before. "
-                "Trust can be rebuilt slowly. Start with one small step: maybe share something small with someone you feel safest with. "
-                "You don't have to trust everyone. A therapist can also help you work through this in a safe space. "
-                "You're not alone in feeling this way. What feels like the hardest part right now?"
+                "**Steps that help:** Start with one small step—share something small with someone you feel safest with. "
+                "You don't have to trust everyone. A therapist can help you work through this in a safe space. "
+                "Mind (mind.org.uk) has resources: 0300 123 3393. What feels like the hardest part right now?"
             )
         if any(w in full_context for w in ["don't like", "don't like anyone", "whats wrong", "wrong with me"]):
             return (
-                "Feeling disconnected from people doesn't mean something is wrong with you. "
-                "Sometimes we go through phases, or we need time to heal from past hurts. "
-                "A few things that might help: be gentle with yourself, try one small social step (even a short chat), "
-                "or talk to a therapist to explore what's going on. You don't have to figure it all out today. "
-                "What would feel manageable right now?"
+                "Feeling disconnected doesn't mean something is wrong with you. "
+                "**What might help:** Be gentle with yourself. Try one small social step—even a short chat with someone. "
+                "Talking to a therapist can help you understand what's going on. "
+                "You don't have to figure it all out today. What would feel manageable right now?"
+            )
+        if any(w in full_context for w in ["sad", "depressed", "down", "lonely", "alone"]):
+            return (
+                "When you're feeling low, small steps matter:\n\n"
+                "1. **Reach out** – Text one person. You don't have to explain everything.\n"
+                "2. **Get outside** – Even 10 minutes of fresh air can help.\n"
+                "3. **Routine** – One small thing at the same time each day (e.g. morning stretch).\n"
+                "4. **Talk to a GP** – If this has lasted weeks, they can help or refer you.\n\n"
+                "Samaritans (116 123) are there 24/7 if you need to talk. You're not alone."
             )
         if any(w in full_context for w in ["dress", "broke", "broken", "stress"]):
             return (
-                "When small things like a broken dress add to our stress, it can feel overwhelming. "
-                "First: it's okay to feel frustrated. Second: can you fix it, borrow something, or get a replacement? "
-                "Third: remember—a dress is just a thing. You matter more. Take a breath. "
-                "What's one small step you can take right now to feel a bit better?"
+                "When small things add to our stress: (1) Take a breath. (2) Can you fix it, borrow something, or find an alternative? "
+                "(3) Remember—a dress is just a thing. You matter more. What's one small step you can take right now?"
             )
         return (
             "Here's what might help: take one small step at a time. Be gentle with yourself. "
             "Talking to someone you trust—a friend, family member, or therapist—can make a big difference. "
-            "You don't have to have all the answers. What feels most doable for you right now?"
+            "If you'd like to share what's going on, I can give more specific advice. What feels most doable for you right now?"
         )
 
     # Trust issues
@@ -143,8 +166,8 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
             "For now: be kind to yourself. You're not broken. Would you like to talk more about what you're feeling?"
         )
 
-    # Things broke / practical problems (dress, etc.)
-    if any(w in msg for w in ["broke", "broken", "tore", "ripped", "ruined"]):
+    # Things broke / practical problems (dress, etc.) - exclude "broke my head"
+    if any(w in msg for w in ["broke", "broken", "tore", "ripped", "ruined"]) and "head" not in msg:
         if "dress" in msg or "clothes" in msg or "outfit" in msg:
             return (
                 "I'm sorry your dress broke—that's frustrating, especially if it mattered to you or you had plans. "
@@ -437,6 +460,34 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
             "You're not broken for feeling this way. Reaching out—even here—takes courage, and I'm glad you did. "
             "Connection can start small: a text to someone, a walk in a busy place, or even just being here. "
             "You matter. Would you like to talk more?"
+        )
+
+    # Cheating / infidelity
+    if any(w in msg for w in ["cheating", "cheat", "cheated", "into another girl", "into another guy", "another woman", "another man", "he is into", "she is into"]):
+        return (
+            "I'm so sorry—being cheated on is a huge betrayal. Your pain is valid. You deserve someone who chooses you. "
+            "It's okay to feel angry, hurt, or confused. You're not overreacting. "
+            "**What might help:** Talk to someone you trust. Consider taking space from him to think clearly. "
+            "You don't have to decide anything today. Relate (relate.org.uk) offers relationship counselling. "
+            "Would you like to talk about how you're feeling? I'm here."
+        )
+
+    # "Broke my head" - idiom for stressing/worrying over someone (or literal head injury)
+    if ("broke" in msg and "head" in msg) or ("breaking" in msg and "head" in msg):
+        if any(w in full_context for w in ["boyfriend", "girlfriend", "relationship", "cheat"]):
+            return (
+                "It sounds like you've been stressing yourself sick over this relationship—that's exhausting. "
+                "When someone hurts us, it can take over our thoughts. You deserve peace. "
+                "**Steps that help:** Limit how much you think about him. Focus on one thing you can control today. "
+                "Talk to a friend. Consider therapy if the pain feels too heavy. "
+                "If you meant a physical head injury from him, please reach out to someone safe—you deserve to be protected. "
+                "How are you holding up?"
+            )
+        return (
+            "Stressing or worrying can feel overwhelming—like your head is full. "
+            "Try: take a breath, step away from screens, or talk to someone. "
+            "If you're in physical pain—please see a doctor or call 111. "
+            "How can I help?"
         )
 
     # Relationship / breakup / fight
