@@ -63,5 +63,15 @@
     "id": "therapy_types",
     "keywords": ["therapy", "counselling", "cbt", "therapist"],
     "content": "UK NHS Talking Therapies (IAPT in England) offers CBT, counselling, guided self-help—often self-referral. Private: BACP and UKCP registers list accredited therapists. Wait times vary by area."
+  },
+  {
+    "id": "self_hatred_disgust",
+    "keywords": ["hate myself", "disgusting", "loathe", "revolting", "gross", "worthless"],
+    "content": "Intense self-criticism and disgust toward oneself often sit alongside depression, trauma, or shame—not moral failure. UK: Samaritans 116 123 for talking; GP can refer for talking therapies; Mind 0300 123 3393. Self-compassion exercises (Kristin Neff) and CBT can help challenge harsh self-talk. Professional support is appropriate when self-hatred is persistent or escalating."
+  },
+  {
+    "id": "anger_at_others",
+    "keywords": ["hate everyone", "hate people", "misanthropy", "angry at everyone"],
+    "content": "Broad anger or hatred toward others often follows betrayal, burnout, or repeated hurt; it can also mask grief or fear. UK: talking therapies via GP or NHS Talking Therapies; Samaritans 116 123 if overwhelmed. Naming specific triggers (events, not whole groups) in therapy can help. If there is risk to self or others, contact GP, crisis services, or 999 in emergency."
   }
 ]

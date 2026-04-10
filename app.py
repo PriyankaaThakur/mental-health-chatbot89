@@ -14,6 +14,7 @@ except ImportError:
     pass  # python-dotenv optional
 
 import copy
+import re
 import uuid
 from flask import Flask, render_template, request, jsonify
 
@@ -33,6 +34,7 @@ CRISIS_KEYWORDS = [
     "self-harm", "self harm", "cutting", "hurt myself",
     "overdose", "take pills", "eat pills", "eat medicine", "100 medicine",
     "take all my medicine", "swallow pills",
+    "sud=cide", "sudcide",  # obfuscated / typo variants
 ]
 
 SYSTEM_PROMPT = """You are a warm, motivating mental health support assistant—like a caring friend who helps people feel better and move forward.
@@ -62,9 +64,16 @@ Never: generic "Thank you for sharing" without addressing their specific situati
 
 
 def is_crisis_message(text: str) -> bool:
-    """Check if message contains crisis keywords."""
+    """Check if message contains crisis keywords (including typos / obfuscated spellings)."""
     msg_lower = text.lower().strip()
     if any(kw in msg_lower for kw in CRISIS_KEYWORDS):
+        return True
+    # Letters-only string catches "sud=cide", "su!cide", spacing tricks
+    letters_only = re.sub(r"[^a-z]", "", msg_lower)
+    if any(
+        s in letters_only
+        for s in ("suicide", "suicid", "sucide", "sucid", "sudcide", "killmyself", "endmylife")
+    ):
         return True
     # Overdose: "100" or "all" + medicine/pills
     if ("medicine" in msg_lower or "medicines" in msg_lower or "pills" in msg_lower) and ("100" in msg_lower or "all" in msg_lower or "many" in msg_lower):
@@ -102,11 +111,53 @@ def _get_recent_user_messages(history: list) -> list[str]:
     return [m["content"].lower() for m in history if m.get("role") == "user"][-5:]
 
 
+def _is_greeting_only(user_message: str) -> bool:
+    """True only for short standalone greetings—not 'Hi I am sad'."""
+    s = user_message.strip().lower()
+    if len(s) > 80:
+        return False
+    # Must not look like a full sentence about feelings
+    if any(w in s for w in ["sad", "hurt", "hate", "feel", "anxious", "depress", "suic", "kill", "die", "ugly", "alone", "stress"]):
+        return False
+    return bool(
+        re.match(r"^(hi|hello|hey)\s*[!?.]*$", s)
+        or re.match(r"^(good\s+(morning|afternoon|evening))[\s!?.]*$", s)
+        or re.match(r"^(hi|hello|hey)\s+(there|again)\s*[!?.]*$", s)
+    )
+
+
 def get_fallback_response(user_message: str, recent_context: list[str] | None = None) -> str:
     """Context-aware fallback when AI fails—specific, logical responses."""
     msg = user_message.lower()
     context = " ".join(recent_context or [])
     full_context = f"{context} {msg}"
+
+    # Self-hatred / disgust / "I hate myself" (high priority—avoid generic default)
+    if any(w in msg for w in ["hate myself", "hate me", "hating myself", "loathe myself", "wish i was dead", "want to disappear"]):
+        return (
+            "I'm really sorry you're hurting this much. What you're feeling is heavy—and it doesn't mean you're a bad person. "
+            "Many people have moments of intense self-criticism; it can be linked to depression or past hurt. "
+            "You deserve support: talking to Samaritans (116 123), your GP, or a therapist can help. "
+            "Right now: try naming one small thing that isn't terrible about today, even if it feels tiny. "
+            "I'm here with you. You matter."
+        )
+
+    if any(w in msg for w in ["disgusting", "revolting", "gross", "feel disgusting", "feeling disgusting", "i'm disgusting", "im disgusting"]):
+        return (
+            "Feeling disgusting or repelled by yourself is painful—and it's a feeling, not the truth about who you are. "
+            "Your worth isn't defined by how you feel in your worst moments. "
+            "If body image is part of this, remember many people struggle; Beat and Mind have resources. "
+            "Would you like to say more about what's behind this feeling? I'm listening."
+        )
+
+    # Hate everyone / misanthropy / anger at people
+    if any(w in msg for w in ["hate everyone", "hate people", "hate all people", "hate everybody", "everyone is awful", "i hate humans"]):
+        return (
+            "Feeling like you hate everyone can come from hurt, burnout, or feeling let down again and again. "
+            "Your anger makes sense if you've been wounded. It doesn't make you a bad person. "
+            "Sometimes talking to a therapist helps unpack where this is coming from. "
+            "Is there one situation or person that started this feeling? I'm here to listen."
+        )
 
     # Follow-up questions - use conversation context for relevant advice and SOLUTIONS
     if any(w in msg for w in [
@@ -530,8 +581,8 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
             "What's been bothering you? I'm here to listen."
         )
 
-    # Greetings
-    if any(w in msg for w in ["hi", "hello", "hey", "good morning", "good afternoon", "good evening"]):
+    # Standalone greetings only (not "Hi I am sad")
+    if _is_greeting_only(user_message):
         return (
             "Hi there! I'm here to listen and support you. "
             "You can share how you're feeling—stress, anxiety, sadness, or anything else. "

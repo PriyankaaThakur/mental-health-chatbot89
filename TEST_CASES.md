@@ -94,6 +94,37 @@ Use these to test that the chatbot responds appropriately.
 
 ---
 
+## Crisis & self-harm (rule-based)
+
+| User Says | Expected |
+|-----------|----------|
+| suicide / suicidal | Crisis response with UK helplines (Samaritans, Shout, etc.) |
+| sucide (typo) | Same crisis response |
+| I am feeling like to sud=cide | Crisis (obfuscated spelling still detected) |
+| I want to end my life | Crisis |
+
+---
+
+## Self-hatred, disgust, anger at others
+
+| User Says | Expected |
+|-----------|----------|
+| I hate myself | Specific empathy: self-criticism, Samaritans/GP/therapist, small grounding step—not generic "thank you for sharing" |
+| I am feeking disgusting / feeling disgusting | Validates disgust as a feeling, worth not defined by worst moments, optional Beat/Mind if body image |
+| I hate everyone | Explores hurt/burnout/betrayal, validates anger, invites one concrete trigger—not generic default |
+
+---
+
+## Greetings vs mixed messages
+
+| User Says | Expected |
+|-----------|----------|
+| Hi / Hello / Hey there | Short greeting only → warm invite to share feelings |
+| Hi I am sad | **Not** treated as greeting alone → sadness / depression style response |
+| Hi I hate myself | Self-hatred branch, not greeting |
+
+---
+
 ## Other
 
 | User Says | Expected |
