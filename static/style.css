@@ -235,6 +235,13 @@ body {
     color: var(--text-secondary);
 }
 
+.footer-rag {
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    opacity: 0.9;
+}
+
 /* Crisis overlay */
 .crisis-overlay {
     position: fixed;

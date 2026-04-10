@@ -1,0 +1,67 @@
+[
+  {
+    "id": "anxiety_grounding",
+    "keywords": ["anxiety", "anxious", "panic", "worried", "nervous", "stress"],
+    "content": "Evidence-based grounding: 5-4-3-2-1 (name 5 things you see, 4 hear, 3 touch, 2 smell, 1 taste). Box breathing: inhale 4s, hold 4s, exhale 4s, hold 4s. NHS recommends talking therapies (CBT) for persistent anxiety. Self-refer via NHS talking therapies or GP."
+  },
+  {
+    "id": "depression_signs",
+    "keywords": ["depressed", "depression", "sad", "hopeless", "empty", "low mood"],
+    "content": "Low mood lasting 2+ weeks, loss of interest, sleep/appetite changes, or thoughts of self-harm warrant professional support. UK: GP can refer; NHS Talking Therapies (self-referral); Samaritans 116 123 for emotional support. Exercise, routine, and daylight exposure can help alongside treatment."
+  },
+  {
+    "id": "sleep_hygiene",
+    "keywords": ["sleep", "insomnia", "can't sleep", "tired", "exhausted", "night"],
+    "content": "Sleep hygiene: fixed wake time, dark cool room, no screens 1h before bed, limit caffeine after midday, avoid alcohol as sleep aid. If insomnia persists weeks, see GP—CBT-I is first-line for chronic insomnia in UK."
+  },
+  {
+    "id": "grief_bereavement",
+    "keywords": ["grief", "died", "death", "lost someone", "bereavement", "mourning"],
+    "content": "Grief has no fixed timeline; anger, guilt, numbness are common. Cruse Bereavement Care UK: 0808 808 1677. NHS bereavement pages list local services. Peer support and counselling can help when stuck."
+  },
+  {
+    "id": "self_harm_signposting",
+    "keywords": ["self-harm", "hurt myself", "cutting", "harm"],
+    "content": "If at risk of harm: Samaritans 116 123, Shout 85258, A&E or 999 in emergency. Alternatives to self-harm include ice on skin, intense exercise, cold water on face (TIPP skills). GP or crisis team for ongoing risk."
+  },
+  {
+    "id": "eating_disorders",
+    "keywords": ["eating", "anorexia", "bulimia", "binge", "food", "weight"],
+    "content": "Beat UK eating disorder charity: 0808 801 0677 (England), similar lines for NI/Scotland/Wales on beateatingdisorders.org.uk. Early treatment improves outcomes; GP can refer to specialist services."
+  },
+  {
+    "id": "relationships_breakup",
+    "keywords": ["breakup", "cheating", "boyfriend", "girlfriend", "relationship", "ex"],
+    "content": "After betrayal or breakup: no contact can aid healing; lean on trusted friends; Relate.org.uk offers counselling. It's normal to cycle through denial, anger, sadness. Professional support if stuck or unsafe."
+  },
+  {
+    "id": "loneliness",
+    "keywords": ["lonely", "alone", "isolated", "no friends"],
+    "content": "Loneliness is a health risk but treatable. Small steps: volunteer, local groups, online communities with moderation. Mind UK resources on loneliness. Age UK and local councils run befriending schemes."
+  },
+  {
+    "id": "work_stress",
+    "keywords": ["work", "job", "boss", "burnout", "overwhelmed", "deadline"],
+    "content": "Work-related stress: ACAS (acas.org.uk) for UK employment rights; occupational health via employer; reasonable adjustments for mental health under Equality Act. Boundaries, breaks, and saying no where safe to do so."
+  },
+  {
+    "id": "trauma_ptsd",
+    "keywords": ["trauma", "ptsd", "flashback", "abuse", "nightmare"],
+    "content": "PTSD and trauma responses are treatable with trauma-focused CBT or EMDR via NHS or private. Grounding during flashbacks; avoid self-blame. Rape Crisis England & Wales 0808 802 9999 for sexual violence support."
+  },
+  {
+    "id": "children_young_people",
+    "keywords": ["child", "teen", "school", "young"],
+    "content": "Young people: Childline 0800 1111, Papyrus HopelineUK 0800 068 4141 (under 35 suicide prevention). CAMHS via GP for under-18s mental health in NHS."
+  },
+  {
+    "id": "medication_disclaimer",
+    "keywords": ["medication", "medicine", "pills", "antidepressant", "doctor"],
+    "content": "This chatbot cannot prescribe or adjust medication. Medication decisions belong to a qualified prescriber (GP/psychiatrist). Never stop psychiatric medication abruptly without medical advice."
+  },
+  {
+    "id": "therapy_types",
+    "keywords": ["therapy", "counselling", "cbt", "therapist"],
+    "content": "UK NHS Talking Therapies (IAPT in England) offers CBT, counselling, guided self-help—often self-referral. Private: BACP and UKCP registers list accredited therapists. Wait times vary by area."
+  }
+]

@@ -1,7 +1,8 @@
 """
 Mental Health Support Chatbot - AI-Powered Flask Backend
-Uses OpenAI GPT for intelligent, contextual responses. Crisis detection remains rule-based.
-No persistent data storage - conversation history kept in memory per session only.
+RAG (Retrieval-Augmented Generation): each reply augments the system prompt with matching
+snippets from data/rag_knowledge.json for more accurate, grounded answers (see rag.py).
+Crisis detection remains rule-based. No persistent data storage.
 """
 
 import os
@@ -12,8 +13,11 @@ try:
 except ImportError:
     pass  # python-dotenv optional
 
+import copy
 import uuid
 from flask import Flask, render_template, request, jsonify
+
+from rag import augment_system_prompt
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-production")
@@ -52,6 +56,8 @@ When they ask about YOU: "I'm here for you. How are you really doing? I'm listen
 
 When suggesting helplines or services, use UK resources: Samaritans 116 123, Shout 85258, Mind 0300 123 3393, Beat (eating disorders) 0808 801 0677, Cruse (bereavement) 0808 808 1677.
 
+When "Retrieved reference knowledge" appears in your instructions, use it to ground facts (helplines, coping ideas, when to seek professional help)—blend it naturally into your reply, do not read it as a rigid script.
+
 Never: generic "Thank you for sharing" without addressing their specific situation. Always: reference what they said, give relevant advice."""
 
 
@@ -80,6 +86,15 @@ def get_crisis_response() -> tuple[str, bool]:
         "You don't have to face this alone. These services are free and confidential.",
         True,
     )
+
+
+def _history_with_rag(history: list) -> list:
+    """Copy history with RAG-augmented system message for this turn."""
+    h = copy.deepcopy(history)
+    if h and h[0].get("role") == "system":
+        last_user = h[-1]["content"] if h[-1].get("role") == "user" else ""
+        h[0] = {"role": "system", "content": augment_system_prompt(SYSTEM_PROMPT, last_user)}
+    return h
 
 
 def _get_recent_user_messages(history: list) -> list[str]:
@@ -539,15 +554,16 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
 
 
 def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
-    """Get AI response. Tries Gemini → Groq → OpenAI. Falls back to empathetic response if all fail."""
+    """Get AI response. Tries: Local LLM → Gemini → Groq → OpenAI. Falls back to empathetic response if all fail."""
+    local_url = os.environ.get("LOCAL_LLM_URL", "").strip()
     gemini_key = os.environ.get("GEMINI_API_KEY")
     groq_key = os.environ.get("GROQ_API_KEY")
     openai_key = os.environ.get("OPENAI_API_KEY")
 
-    if not gemini_key and not groq_key and not openai_key:
+    if not local_url and not gemini_key and not groq_key and not openai_key:
         return (
-            "AI is not configured yet. Add GEMINI_API_KEY (free at aistudio.google.com/apikey) "
-            "or GROQ_API_KEY (free at console.groq.com) in Render → Environment, then redeploy.",
+            "AI is not configured. Add one of: LOCAL_LLM_URL (Ollama/LM Studio), GEMINI_API_KEY (free at aistudio.google.com/apikey), "
+            "or GROQ_API_KEY (free at console.groq.com) in your environment.",
             False,
         )
 
@@ -563,13 +579,22 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
     history = conversations[session_id]
     history.append({"role": "user", "content": user_message})
 
+    # RAG: augment system prompt with retrieved knowledge for this turn (more accurate, grounded replies)
+    history_for_llm = _history_with_rag(history)
+
     result = (None, "")
-    if gemini_key:
-        result = _get_gemini_response(history, gemini_key)
+    # 1. Local LLM (Ollama, LM Studio, or any OpenAI-compatible API)
+    if local_url:
+        result = _get_local_llm_response(history_for_llm, local_url)
+    # 2. Gemini (free)
+    if result[0] is None and gemini_key:
+        result = _get_gemini_response(history_for_llm, gemini_key)
+    # 3. Groq (free)
     if result[0] is None and groq_key:
-        result = _get_groq_response(history, groq_key)
+        result = _get_groq_response(history_for_llm, groq_key)
+    # 4. OpenAI (paid)
     if result[0] is None and openai_key:
-        result = _get_openai_response(history, openai_key)
+        result = _get_openai_response(history_for_llm, openai_key)
 
     if result and result[0] is not None:
         assistant_message = result[0]
@@ -583,15 +608,44 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
     return (get_fallback_response(user_message, recent), False)
 
 
+def _get_local_llm_response(history: list, base_url: str) -> tuple[str | None, str]:
+    """Use locally deployed LLM (Ollama, LM Studio, LocalAI, etc.) via OpenAI-compatible API."""
+    try:
+        from openai import OpenAI
+
+        # Normalize URL: ensure /v1 for chat completions
+        url = base_url.rstrip("/")
+        if not url.endswith("/v1"):
+            url = f"{url}/v1"
+        model = os.environ.get("LOCAL_LLM_MODEL", "llama3.2")
+        client = OpenAI(base_url=url, api_key=os.environ.get("LOCAL_LLM_API_KEY", "ollama"))
+        response = client.chat.completions.create(
+            model=model,
+            messages=history,
+            max_tokens=500,
+            temperature=0.7,
+        )
+        return (response.choices[0].message.content, "")
+    except Exception as e:
+        err = str(e).lower()
+        if "connection" in err or "refused" in err or "timeout" in err:
+            return (None, "Local LLM is not reachable. Is Ollama/LM Studio running?")
+        if "model" in err or "not found" in err:
+            return (None, "Model not found. Check LOCAL_LLM_MODEL.")
+        return (None, str(e)[:100])
+
+
 def _get_gemini_response(history: list, api_key: str) -> tuple[str | None, str]:
     """Use Google Gemini (free). Returns (response, error_msg)."""
     try:
         import google.generativeai as genai
 
         genai.configure(api_key=api_key)
+        # Use same RAG-augmented system as OpenAI path (history[0] already augmented)
+        system_text = history[0]["content"] if history and history[0].get("role") == "system" else SYSTEM_PROMPT
         model = genai.GenerativeModel(
             model_name=os.environ.get("GEMINI_MODEL", "gemini-1.5-flash"),
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=system_text,
         )
 
         # Build chat with history (skip system message)
