@@ -8,3 +8,7 @@ venv/
 .venv/
 *.egg-info/
 .eggs/
+
+# Optional mood analytics store (may contain session metadata)
+data/mood_events.json
+data/mood_events.json.tmp

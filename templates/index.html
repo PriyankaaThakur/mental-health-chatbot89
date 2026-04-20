@@ -11,7 +11,8 @@
     <div class="container">
         <header class="header">
             <h1>AI Mental Health Support</h1>
-            <p class="tagline">Powered by AI + RAG (knowledge-grounded replies) – a safe space to share how you feel</p>
+            <p class="tagline">Powered by AI + RAG + emotion-aware context (text; optional face image). Not a diagnosis.</p>
+            <p class="nav-links"><a href="/dashboard">Mood analytics dashboard</a></p>
             <div class="disclaimer">
                 <strong>Disclaimer:</strong> This chatbot is not a licensed therapist or mental health professional.
                 It provides general support and information only. If you're in crisis, please contact emergency services or a crisis helpline.
@@ -28,6 +29,10 @@
             </div>
 
             <form class="chat-input-form" id="chatForm">
+                <label class="face-upload-label">
+                    <span>Optional face photo (FER-style emotion cue)</span>
+                    <input type="file" id="faceImage" accept="image/*" />
+                </label>
                 <textarea 
                     id="messageInput" 
                     placeholder="Type your message here..." 
@@ -43,7 +48,7 @@
         </main>
 
         <footer class="footer">
-            <p>No data is stored. Your conversations are private and not saved.</p>
+            <p><strong>Privacy:</strong> Chat text is sent to your configured AI provider. Optional mood analytics (emotion labels, session key) may be stored locally in <code>data/mood_events.json</code> for research—turn off with <code>MOOD_TRACKING_ENABLED=false</code>. See ETHICS_AND_PRIVACY.md.</p>
             <p class="footer-rag">RAG: Relevant guidance from a curated knowledge base is added to each AI reply for better accuracy.</p>
         </footer>
     </div>
@@ -70,6 +75,7 @@
         const sendBtn = document.getElementById('sendBtn');
         const crisisOverlay = document.getElementById('crisisOverlay');
         const crisisDismiss = document.getElementById('crisisDismiss');
+        const faceImage = document.getElementById('faceImage');
 
         let sessionId = sessionStorage.getItem('chatSessionId') || crypto.randomUUID();
         sessionStorage.setItem('chatSessionId', sessionId);
@@ -124,15 +130,43 @@
             addTypingIndicator();
 
             try {
-                const res = await fetch('/chat', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ message: text, session_id: sessionId })
-                });
+                let res;
+                const file = faceImage && faceImage.files && faceImage.files[0];
+                if (file) {
+                    const fd = new FormData();
+                    fd.append('message', text);
+                    fd.append('session_id', sessionId);
+                    fd.append('face_image', file);
+                    res = await fetch('/chat', { method: 'POST', body: fd });
+                    faceImage.value = '';
+                } else {
+                    res = await fetch('/chat', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ message: text, session_id: sessionId })
+                    });
+                }
                 const data = await res.json();
                 removeTypingIndicator();
                 if (data.session_id) sessionId = data.session_id;
-                addMessage(data.response, true, data.is_crisis);
+                const botEl = addMessage(data.response, true, data.is_crisis);
+                if (data.emotion && data.emotion.label) {
+                    const hint = document.createElement('div');
+                    hint.className = 'emotion-hint';
+                    let line = 'Detected tone (text): ' + data.emotion.label;
+                    if (data.emotion.backend) line += ' · ' + data.emotion.backend;
+                    if (data.face_emotion && data.face_emotion.label) {
+                        line += ' · Face cue: ' + data.face_emotion.label;
+                    }
+                    hint.textContent = line;
+                    botEl.appendChild(hint);
+                }
+                if (data.coping_suggestions && data.coping_suggestions.length) {
+                    const cope = document.createElement('div');
+                    cope.className = 'coping-hint';
+                    cope.textContent = 'Ideas: ' + data.coping_suggestions.slice(0, 2).join(' · ');
+                    botEl.appendChild(cope);
+                }
                 if (data.is_crisis) {
                     crisisOverlay.classList.add('visible');
                     crisisOverlay.setAttribute('aria-hidden', 'false');

@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mood analytics (demo)</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container dashboard-wrap">
+        <header class="header">
+            <h1>Mood analytics dashboard</h1>
+            <p class="tagline">Aggregated emotion cues from chat (for evaluation / dissertation—see ETHICS_AND_PRIVACY.md)</p>
+            <p><a href="/">← Back to chat</a></p>
+        </header>
+
+        <section class="dashboard-stats" id="stats">
+            <p>Loading…</p>
+        </section>
+
+        <div class="dashboard-charts">
+            <div class="chart-box">
+                <h2>Text emotion distribution</h2>
+                <canvas id="emotionBar" height="200"></canvas>
+            </div>
+            <div class="chart-box">
+                <h2>Events per day (last 14 days)</h2>
+                <canvas id="dayLine" height="200"></canvas>
+            </div>
+        </div>
+
+        <footer class="footer">
+            <p>Not clinical data. Sessions may be hashed if MOOD_ANONYMIZE=true.</p>
+        </footer>
+    </div>
+
+    <script>
+        async function load() {
+            const statsEl = document.getElementById('stats');
+            try {
+                const res = await fetch('/api/analytics/summary');
+                if (!res.ok) {
+                    statsEl.innerHTML = '<p>Analytics API unavailable or disabled.</p>';
+                    return;
+                }
+                const d = await res.json();
+                statsEl.innerHTML = `
+                    <ul class="stat-list">
+                        <li><strong>Total mood events:</strong> ${d.total_events}</li>
+                        <li><strong>Estimated unique sessions:</strong> ${d.unique_sessions_estimate}</li>
+                        <li><strong>Crisis-flagged events recorded:</strong> ${d.crisis_flags_recorded}</li>
+                    </ul>`;
+
+                const labels = Object.keys(d.emotion_counts || {});
+                const values = labels.map(k => d.emotion_counts[k]);
+                new Chart(document.getElementById('emotionBar'), {
+                    type: 'bar',
+                    data: {
+                        labels,
+                        datasets: [{
+                            label: 'Count',
+                            data: values,
+                            backgroundColor: 'rgba(91, 124, 153, 0.7)',
+                        }]
+                    },
+                    options: { scales: { y: { beginAtZero: true } } }
+                });
+
+                const byDay = d.messages_per_day || {};
+                const days = Object.keys(byDay);
+                const dayVals = days.map(k => byDay[k]);
+                new Chart(document.getElementById('dayLine'), {
+                    type: 'line',
+                    data: {
+                        labels: days,
+                        datasets: [{
+                            label: 'Events',
+                            data: dayVals,
+                            borderColor: '#5b7c99',
+                            tension: 0.2,
+                            fill: false,
+                        }]
+                    },
+                    options: { scales: { y: { beginAtZero: true } } }
+                });
+            } catch (e) {
+                statsEl.innerHTML = '<p>Could not load analytics.</p>';
+            }
+        }
+        load();
+    </script>
+</body>
+</html>

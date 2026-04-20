@@ -14,6 +14,17 @@ This project is for **education and support**, not a substitute for professional
 - **Crisis handling** — Messages suggesting self-harm or suicide (including common typos and obfuscated spellings) return a fixed crisis message with Samaritans, Shout, and other UK resources.
 - **Fallback replies** — If all AI calls fail, topic-aware text responses in `app.py` still offer supportive copy.
 
+### Advanced (dissertation / portfolio)
+
+- **Emotion-aware text** — DistilRoBERTa (`j-hartmann/emotion-english-distilroberta-base`) when `requirements-ml.txt` is installed; otherwise a **keyword heuristic** baseline (`emotion_service.py`). Cues are injected into the system prompt (not a clinical diagnosis).
+- **Multi-modal (optional)** — Upload a **face image** with your message; a **ViT** classifier (`trpakov/vit-face-expression`, FER-style labels) adds a second cue. If ML deps are missing, face analysis is skipped.
+- **Context memory** — Optional **mood event log** (`data/mood_events.json`) with **pattern detection** over recent messages (e.g. repeated difficult emotions → suggest professional support gently). Disable with `MOOD_TRACKING_ENABLED=false`. Optional **DynamoDB** hook via `MOOD_BACKEND=dynamodb` (see `ETHICS_AND_PRIVACY.md`).
+- **Personalised coping** — `coping.py` maps detected emotions to **breathing, grounding, journaling** ideas; returned in API JSON and hinted in the UI.
+- **Analytics dashboard** — `/dashboard` + `/api/analytics/summary` (Chart.js) for emotion distribution and events per day.
+- **Ethics & model comparison** — `ETHICS_AND_PRIVACY.md`, `MODEL_EVALUATION.md`, `docs/AWS_ARCHITECTURE.md` (reference design for Lambda / API Gateway / S3).
+
+Install ML stack: `pip install -r requirements.txt -r requirements-ml.txt` (large download; CPU OK).
+
 ---
 
 ## System architecture
@@ -22,10 +33,11 @@ This project is for **education and support**, not a substitute for professional
 
 | Layer | Components |
 |-------|------------|
-| **Client** | Browser loads `templates/index.html` and `static/style.css`. JavaScript sends chat as `POST /chat` with JSON (`message`, `session_id`). |
+| **Client** | Browser loads `templates/index.html` and `static/style.css`. Chat is `POST /chat` as JSON **or** `multipart/form-data` (`message`, `session_id`, optional `face_image`). |
 | **Application** | **Flask** (`app.py`): serves the page, `/health`, and `/chat`. Holds **in-memory** conversation history keyed by `session_id` (cleared on server restart; no database). |
 | **Safety** | **Rule-based crisis detection** runs on every user message **before** any LLM call. Matches run on raw text plus normalized patterns (typos / obfuscation). On match, the API returns a fixed UK helpline response and skips AI. |
 | **Knowledge (RAG)** | `rag.py` reads `data/rag_knowledge.json`, scores snippets against the latest user message, and **prepends** matching content to the system prompt for that turn only (`augment_system_prompt`). |
+| **Emotion & memory** | **Text emotion** (+ optional **face**), **coping** suggestions, **mood history** / pattern note (`mood_store.py`). Injected into the system prompt before inference. |
 | **Inference** | One **provider chain** per request (first success wins): **Local LLM** (OpenAI-compatible, e.g. Ollama) → **Gemini** → **Groq** → **OpenAI**. If every configured provider fails or returns nothing, **`get_fallback_response`** uses keyword rules and recent user context. |
 
 ### Request flow
@@ -36,13 +48,14 @@ flowchart TD
   B --> C{Crisis detection}
   C -->|Match| D[Fixed UK helpline response]
   C -->|No match| E[Append user message to session history]
-  E --> F[RAG: merge snippets into system prompt]
+  E --> E2[Emotion text + optional face; mood pattern; coping]
+  E2 --> F[RAG + emotion context in system prompt]
   F --> G[Provider chain: Local → Gemini → Groq → OpenAI]
   G --> H{Valid reply?}
   H -->|Yes| I[Append assistant message; trim long history]
   H -->|No| J[Keyword fallback: get_fallback_response]
   J --> I
-  I --> K[JSON: response, session_id, is_crisis]
+  I --> K[JSON: response, session_id, is_crisis, emotion, coping, …]
   D --> K
 ```
 
@@ -115,8 +128,11 @@ For step-by-step hosting (Railway, Render, environment variables), see **[DEPLOY
 | `templates/index.html` | Chat page |
 | `static/style.css` | Styles |
 | `TEST_CASES.md` | Manual test ideas for responses |
+| `emotion_service.py` | Text + face emotion (HF or heuristic) |
+| `mood_store.py` | Mood analytics JSON / optional DynamoDB |
+| `coping.py` | Emotion → coping suggestions |
 
-Additional docs: `LOCAL_LLM.md`, `RAG.md`.
+Additional docs: `LOCAL_LLM.md`, `RAG.md`, `ETHICS_AND_PRIVACY.md`, `MODEL_EVALUATION.md`, `docs/AWS_ARCHITECTURE.md`.
 
 ---
 

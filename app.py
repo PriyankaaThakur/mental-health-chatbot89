@@ -2,7 +2,7 @@
 Mental Health Support Chatbot - AI-Powered Flask Backend
 RAG (Retrieval-Augmented Generation): each reply augments the system prompt with matching
 snippets from data/rag_knowledge.json for more accurate, grounded answers (see rag.py).
-Crisis detection remains rule-based. No persistent data storage.
+Crisis detection remains rule-based. Optional mood analytics (see mood_store.py, ETHICS_AND_PRIVACY.md).
 """
 
 import os
@@ -18,14 +18,41 @@ import re
 import uuid
 from flask import Flask, render_template, request, jsonify
 
+from coping import merge_face_and_text_suggestions
+from emotion_service import build_emotion_instruction, classify_face_image, classify_text_emotion
+from mood_store import analytics_summary, detect_mood_pattern, record_event
 from rag import augment_system_prompt
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "dev-secret-change-in-production")
+app.config["MAX_CONTENT_LENGTH"] = int(os.environ.get("MAX_UPLOAD_MB", "8")) * 1024 * 1024
 
 # In-memory conversation history (session_id -> list of messages)
 # Cleared on server restart. No persistent storage.
 conversations: dict[str, list[dict]] = {}
+
+
+def _mood_tracking_enabled() -> bool:
+    return os.environ.get("MOOD_TRACKING_ENABLED", "true").lower() not in ("0", "false", "no")
+
+
+def _emotion_meta(
+    text_em: dict,
+    face_em: dict | None,
+    coping: list[str],
+    pattern_note: str | None,
+) -> dict:
+    return {
+        "emotion": {
+            "label": text_em.get("label"),
+            "confidence": round(float(text_em.get("confidence", 0)), 4),
+            "backend": text_em.get("backend"),
+        },
+        "face_emotion": face_em,
+        "coping_suggestions": coping,
+        "mood_pattern_note": pattern_note,
+    }
+
 
 # Crisis keywords - trigger emergency response (bypasses AI)
 CRISIS_KEYWORDS = [
@@ -66,6 +93,12 @@ Never: generic "Thank you for sharing" without addressing their specific situati
 def is_crisis_message(text: str) -> bool:
     """Check if message contains crisis keywords (including typos / obfuscated spellings)."""
     msg_lower = text.lower().strip()
+    # "can't go on" (crisis) but not "can't go on holiday / vacation"
+    if re.search(
+        r"\b(can't|cant|cannot)\s+go\s+on\b(?!\s+(holiday|vacation|honeymoon|tour))",
+        msg_lower,
+    ):
+        return True
     if any(kw in msg_lower for kw in CRISIS_KEYWORDS):
         return True
     # Letters-only string catches "sud=cide", "su!cide", spacing tricks
@@ -97,12 +130,18 @@ def get_crisis_response() -> tuple[str, bool]:
     )
 
 
-def _history_with_rag(history: list) -> list:
-    """Copy history with RAG-augmented system message for this turn."""
+def _history_with_rag(history: list, emotion_instruction: str = "") -> list:
+    """Copy history with RAG- and emotion-augmented system message for this turn."""
     h = copy.deepcopy(history)
     if h and h[0].get("role") == "system":
         last_user = h[-1]["content"] if h[-1].get("role") == "user" else ""
-        h[0] = {"role": "system", "content": augment_system_prompt(SYSTEM_PROMPT, last_user)}
+        sys_content = augment_system_prompt(SYSTEM_PROMPT, last_user)
+        if emotion_instruction.strip():
+            sys_content += (
+                "\n\n---\nEmotion & multimodal context (tone hints only—not a diagnosis):\n"
+                + emotion_instruction.strip()
+            )
+        h[0] = {"role": "system", "content": sys_content}
     return h
 
 
@@ -604,7 +643,11 @@ def get_fallback_response(user_message: str, recent_context: list[str] | None = 
     )
 
 
-def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
+def get_ai_response(
+    user_message: str,
+    session_id: str,
+    emotion_instruction: str = "",
+) -> tuple[str, bool]:
     """Get AI response. Tries: Local LLM → Gemini → Groq → OpenAI. Falls back to empathetic response if all fail."""
     local_url = os.environ.get("LOCAL_LLM_URL", "").strip()
     gemini_key = os.environ.get("GEMINI_API_KEY")
@@ -630,8 +673,8 @@ def get_ai_response(user_message: str, session_id: str) -> tuple[str, bool]:
     history = conversations[session_id]
     history.append({"role": "user", "content": user_message})
 
-    # RAG: augment system prompt with retrieved knowledge for this turn (more accurate, grounded replies)
-    history_for_llm = _history_with_rag(history)
+    # RAG + optional emotion / face / pattern context
+    history_for_llm = _history_with_rag(history, emotion_instruction)
 
     result = (None, "")
     # 1. Local LLM (Ollama, LM Studio, or any OpenAI-compatible API)
@@ -773,32 +816,91 @@ def index():
 
 @app.route("/chat", methods=["POST"])
 def chat():
-    data = request.get_json() or {}
-    message = (data.get("message") or "").strip()
-    session_id = data.get("session_id") or str(uuid.uuid4())
+    face_em: dict | None = None
+    ct = (request.content_type or "").lower()
+    if "multipart/form-data" in ct:
+        message = (request.form.get("message") or "").strip()
+        session_id = request.form.get("session_id") or str(uuid.uuid4())
+        up = request.files.get("face_image")
+        if up and up.filename:
+            face_em = classify_face_image(up.stream)
+    else:
+        data = request.get_json() or {}
+        message = (data.get("message") or "").strip()
+        session_id = data.get("session_id") or str(uuid.uuid4())
 
     if not message:
         return jsonify({
             "response": "Please type a message.",
             "is_crisis": False,
             "session_id": session_id,
+            "emotion": None,
+            "face_emotion": None,
+            "coping_suggestions": [],
+            "mood_pattern_note": None,
         })
+
+    text_em = classify_text_emotion(message)
+    pattern_note = detect_mood_pattern(session_id) if _mood_tracking_enabled() else None
+    coping = merge_face_and_text_suggestions(
+        str(text_em.get("label", "neutral")),
+        str(face_em["label"]) if face_em else None,
+        limit=4,
+    )
+    emotion_instruction = build_emotion_instruction(text_em, face_em, pattern_note, coping)
+    meta = _emotion_meta(text_em, face_em, coping, pattern_note)
 
     # Crisis detection - always highest priority, bypasses AI
     if is_crisis_message(message):
         response, is_crisis = get_crisis_response()
+        if _mood_tracking_enabled():
+            record_event(
+                session_id,
+                text_emotion_label=str(text_em.get("label", "unknown")),
+                text_confidence=float(text_em.get("confidence", 0)),
+                text_backend=str(text_em.get("backend", "")),
+                face_emotion_label=face_em.get("label") if face_em else None,
+                face_confidence=float(face_em["confidence"]) if face_em else None,
+                message_preview=message,
+                is_crisis=True,
+            )
         return jsonify({
             "response": response,
             "is_crisis": is_crisis,
             "session_id": session_id,
+            **meta,
         })
 
-    response, is_crisis = get_ai_response(message, session_id)
+    response, is_crisis = get_ai_response(message, session_id, emotion_instruction)
+    if _mood_tracking_enabled():
+        record_event(
+            session_id,
+            text_emotion_label=str(text_em.get("label", "unknown")),
+            text_confidence=float(text_em.get("confidence", 0)),
+            text_backend=str(text_em.get("backend", "")),
+            face_emotion_label=face_em.get("label") if face_em else None,
+            face_confidence=float(face_em["confidence"]) if face_em else None,
+            message_preview=message,
+            is_crisis=False,
+        )
     return jsonify({
         "response": response,
         "is_crisis": is_crisis,
         "session_id": session_id,
+        **meta,
     })
+
+
+@app.route("/dashboard")
+def dashboard():
+    return render_template("dashboard.html")
+
+
+@app.route("/api/analytics/summary")
+def api_analytics_summary():
+    if os.environ.get("ANALYTICS_API_ENABLED", "true").lower() in ("0", "false", "no"):
+        return jsonify({"error": "Analytics API disabled"}), 403
+    return jsonify(analytics_summary())
 
 
 if __name__ == "__main__":

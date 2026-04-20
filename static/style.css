@@ -324,3 +324,81 @@ body {
 .chat-messages::-webkit-scrollbar-thumb:hover {
     background: #94a3b8;
 }
+
+.nav-links {
+    margin: 0.25rem 0 0 0;
+    font-size: 0.9rem;
+}
+
+.nav-links a {
+    color: var(--accent);
+}
+
+.face-upload-label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    border-bottom: 1px solid var(--bg-chat);
+}
+
+.face-upload-label input[type="file"] {
+    font-size: 0.8rem;
+}
+
+.emotion-hint,
+.coping-hint {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    padding-top: 0.5rem;
+    border-top: 1px dashed #cbd5e1;
+}
+
+.coping-hint {
+    font-style: italic;
+}
+
+.dashboard-wrap {
+    max-width: 900px;
+}
+
+.dashboard-stats {
+    background: var(--bg-secondary);
+    padding: 1rem 1.25rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    margin-bottom: 1.5rem;
+}
+
+.stat-list {
+    margin: 0;
+    padding-left: 1.25rem;
+}
+
+.dashboard-charts {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+}
+
+@media (min-width: 720px) {
+    .dashboard-charts {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+.chart-box {
+    background: var(--bg-secondary);
+    padding: 1rem;
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+}
+
+.chart-box h2 {
+    font-size: 1rem;
+    margin: 0 0 1rem 0;
+    font-weight: 600;
+}
