@@ -16,6 +16,46 @@ This project is for **education and support**, not a substitute for professional
 
 ---
 
+## System architecture
+
+### Layers
+
+| Layer | Components |
+|-------|------------|
+| **Client** | Browser loads `templates/index.html` and `static/style.css`. JavaScript sends chat as `POST /chat` with JSON (`message`, `session_id`). |
+| **Application** | **Flask** (`app.py`): serves the page, `/health`, and `/chat`. Holds **in-memory** conversation history keyed by `session_id` (cleared on server restart; no database). |
+| **Safety** | **Rule-based crisis detection** runs on every user message **before** any LLM call. Matches run on raw text plus normalized patterns (typos / obfuscation). On match, the API returns a fixed UK helpline response and skips AI. |
+| **Knowledge (RAG)** | `rag.py` reads `data/rag_knowledge.json`, scores snippets against the latest user message, and **prepends** matching content to the system prompt for that turn only (`augment_system_prompt`). |
+| **Inference** | One **provider chain** per request (first success wins): **Local LLM** (OpenAI-compatible, e.g. Ollama) → **Gemini** → **Groq** → **OpenAI**. If every configured provider fails or returns nothing, **`get_fallback_response`** uses keyword rules and recent user context. |
+
+### Request flow
+
+```mermaid
+flowchart TD
+  A[Browser: user sends message] --> B[POST /chat JSON]
+  B --> C{Crisis detection}
+  C -->|Match| D[Fixed UK helpline response]
+  C -->|No match| E[Append user message to session history]
+  E --> F[RAG: merge snippets into system prompt]
+  F --> G[Provider chain: Local → Gemini → Groq → OpenAI]
+  G --> H{Valid reply?}
+  H -->|Yes| I[Append assistant message; trim long history]
+  H -->|No| J[Keyword fallback: get_fallback_response]
+  J --> I
+  I --> K[JSON: response, session_id, is_crisis]
+  D --> K
+```
+
+The **provider chain** only calls each backend if it is configured in the environment and every earlier step returned no usable reply. See `get_ai_response()` in `app.py`.
+
+### Design notes
+
+- **State**: Conversations live in a Python `dict` in `app.py`, not on disk. Each tab/session should send a stable `session_id` from the client for continuity.
+- **Privacy**: With a **local LLM**, prompts can stay on your machine; cloud providers receive message text per their policies when those backends are used.
+- **Configuration**: All API URLs and keys come from environment variables (see `.env`).
+
+---
+
 ## Quick start (local)
 
 **Requirements:** Python 3.10+ recommended.
